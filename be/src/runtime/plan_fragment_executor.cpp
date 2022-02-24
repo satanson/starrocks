@@ -60,12 +60,13 @@ PlanFragmentExecutor::PlanFragmentExecutor(ExecEnv* exec_env, report_status_call
 
 PlanFragmentExecutor::~PlanFragmentExecutor() {
     close();
+    detach_query_context();
 }
 
 Status PlanFragmentExecutor::prepare(const TExecPlanFragmentParams& request) {
     const TPlanFragmentExecParams& params = request.params;
     _query_id = params.query_id;
-
+    attach_query_context(_query_id);
     LOG(INFO) << "Prepare(): query_id=" << print_id(_query_id)
               << " fragment_instance_id=" << print_id(params.fragment_instance_id)
               << " backend_num=" << request.backend_num;
@@ -95,7 +96,16 @@ Status PlanFragmentExecutor::prepare(const TExecPlanFragmentParams& request) {
     // set up desc tbl
     DescriptorTbl* desc_tbl = nullptr;
     DCHECK(request.__isset.desc_tbl);
-    RETURN_IF_ERROR(DescriptorTbl::create(obj_pool(), request.desc_tbl, &desc_tbl, _runtime_state->chunk_size()));
+    if (request.desc_tbl.__isset.is_cached && request.desc_tbl.is_cached) {
+        desc_tbl = _query_ctx->desc_tbl();
+        if (desc_tbl == nullptr) {
+            return Status::Cancelled("Query terminates prematurely");
+        }
+    } else {
+        RETURN_IF_ERROR(DescriptorTbl::create(_query_ctx->object_pool(), request.desc_tbl, &desc_tbl,
+                                              _runtime_state->chunk_size()));
+        _query_ctx->set_desc_tbl(desc_tbl);
+    }
     _runtime_state->set_desc_tbl(desc_tbl);
 
     // set up plan
@@ -453,6 +463,18 @@ void PlanFragmentExecutor::close() {
     }
 
     _closed = true;
+}
+
+void PlanFragmentExecutor::attach_query_context(const UniqueId& query_id) {
+    DCHECK(_query_ctx == nullptr);
+    _query_ctx = QueryContextManager::instance()->get_or_register(_query_id);
+    _has_increment_num_instances = true;
+}
+
+void PlanFragmentExecutor::detach_query_context() {
+    if (_has_increment_num_instances && _query_ctx != nullptr) {
+        QueryContextManager::instance()->unregister(_query_ctx->query_id());
+    }
 }
 
 } // namespace starrocks

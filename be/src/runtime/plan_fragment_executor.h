@@ -30,6 +30,7 @@
 #include "common/object_pool.h"
 #include "common/status.h"
 #include "runtime/mem_tracker.h"
+#include "runtime/query_context.h"
 #include "runtime/query_statistics.h"
 #include "runtime/runtime_state.h"
 
@@ -201,6 +202,8 @@ private:
 
     // If this is a runtime filter merge node for some query.
     bool _is_runtime_filter_merge_node;
+    QueryContext* _query_ctx = nullptr;
+    bool _has_increment_num_instances = false;
 
     ObjectPool* obj_pool() { return _runtime_state->obj_pool(); }
 
@@ -221,6 +224,9 @@ private:
     const DescriptorTbl& desc_tbl() { return _runtime_state->desc_tbl(); }
 
     void collect_query_statistics();
+
+    void attach_query_context(const starrocks::UniqueId& query_id);
+    void detach_query_context();
 };
 
 } // namespace starrocks
