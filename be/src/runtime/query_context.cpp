@@ -13,33 +13,58 @@ QueryContext* QueryContextManager::get_or_register(const starrocks::TUniqueId& k
     size_t i = std::hash<size_t>()(k.lo) % NUM_SLOTS;
     auto& mutex = _mutexes[i];
     auto& map = _maps[i];
-    std::unique_lock<std::shared_mutex> lock(mutex);
-    auto it = map.find(k);
-    if (it != map.end()) {
-        it->second->increment_num_instances();
-        return it->second.get();
+    {
+        std::shared_lock<std::shared_mutex> lock(mutex);
+        auto it = map.find(k);
+        if (it != map.end()) {
+            it->second->increment_num_instances();
+            return it->second.get();
+        }
     }
+    {
+        std::unique_lock<std::shared_mutex> lock(mutex);
+        auto it = map.find(k);
+        if (it != map.end()) {
+            it->second->increment_num_instances();
+            return it->second.get();
+        }
 
-    auto&& ctx = std::make_shared<QueryContext>();
-    auto* ctx_raw_ptr = ctx.get();
-    ctx_raw_ptr->set_query_id(k);
-    ctx_raw_ptr->increment_num_instances();
-    map.emplace(k, std::move(ctx));
-    return ctx_raw_ptr;
+        auto&& ctx = std::make_shared<QueryContext>();
+        auto* ctx_raw_ptr = ctx.get();
+        ctx_raw_ptr->set_query_id(k);
+        ctx_raw_ptr->increment_num_instances();
+        map.emplace(k, std::move(ctx));
+        return ctx_raw_ptr;
+    }
 }
 
-void QueryContextManager::unregister(const starrocks::TUniqueId& k) {
+void QueryContextManager::remove(const TUniqueId& k) {
     size_t i = std::hash<size_t>()(k.lo) % NUM_SLOTS;
     auto& mutex = _mutexes[i];
     auto& map = _maps[i];
     std::unique_lock<std::shared_mutex> lock(mutex);
-    auto it = map.find(k);
-    if (it == map.end()) {
-        return;
+    map.erase(k);
+}
+
+void QueryContextManager::clean_removable_query_contexts() {
+    for (int i = 0; i < NUM_SLOTS; ++i) {
+        auto& mutex = _mutexes[i];
+        auto& map = _maps[i];
+        vector<TUniqueId> _trash;
+        {
+            std::shared_lock<std::shared_mutex> lock(mutex);
+            auto it = map.begin();
+            while (it != map.end()) {
+                if (it->second->is_removable()) {
+                    _trash.push_back(it->second->query_id());
+                }
+                ++it;
+            }
+        }
+        for (auto& query_id : _trash) {
+            std::unique_lock<std::shared_mutex> lock(mutex);
+            map.erase(query_id);
+        }
     }
-    if (it->second->decrement_num_instances() > 0) {
-        return;
-    }
-    map.erase(it);
 }
 } // namespace starrocks

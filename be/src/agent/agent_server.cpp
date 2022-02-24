@@ -95,6 +95,7 @@ AgentServer::AgentServer(ExecEnv* exec_env, const TMasterInfo& master_info)
     CREATE_AND_START_POOL(RELEASE_SNAPSHOT, _release_snapshot_workers, config::release_snapshot_worker_count);
     CREATE_AND_START_POOL(MOVE, _move_dir_workers, 1);
     CREATE_AND_START_POOL(UPDATE_TABLET_META_INFO, _update_tablet_meta_info_workers, 1);
+    CREATE_AND_START_POOL(CLEAN_QUERY_CONTEXT, _clean_query_context_workers, 1);
 #undef CREATE_AND_START_POOL
 }
 

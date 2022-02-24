@@ -67,7 +67,8 @@ public:
         RELEASE_SNAPSHOT,
         MOVE,
         RECOVER_TABLET,
-        UPDATE_TABLET_META_INFO
+        UPDATE_TABLET_META_INFO,
+        CLEAN_QUERY_CONTEXT
     };
 
     typedef void* (*CALLBACK_FUNCTION)(void*);
@@ -117,6 +118,7 @@ private:
     static void* _release_snapshot_thread_callback(void* arg_this);
     static void* _move_dir_thread_callback(void* arg_this);
     static void* _update_tablet_meta_worker_thread_callback(void* arg_this);
+    static void* _clean_query_context_thread_callback(void* arg_this);
 
     void _alter_tablet(TaskWorkerPool* worker_pool_this, const TAgentTaskRequest& alter_tablet_request,
                        int64_t signature, const TTaskType::type task_type, TFinishTaskRequest* finish_task_request);

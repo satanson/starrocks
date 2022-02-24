@@ -67,6 +67,16 @@ Status PlanFragmentExecutor::prepare(const TExecPlanFragmentParams& request) {
     const TPlanFragmentExecParams& params = request.params;
     _query_id = params.query_id;
     attach_query_context(_query_id);
+    if (request.query_options.__isset.query_timeout) {
+        _query_ctx->set_expire_seconds(std::max<int>(request.query_options.query_timeout, 1));
+    } else {
+        _query_ctx->set_expire_seconds(300);
+    }
+    _query_ctx->extend_lifetime();
+    if (request.params.__isset.instances_number) {
+        _query_ctx->set_total_instances_received(request.params.instances_number);
+    }
+
     LOG(INFO) << "Prepare(): query_id=" << print_id(_query_id)
               << " fragment_instance_id=" << print_id(params.fragment_instance_id)
               << " backend_num=" << request.backend_num;
@@ -473,7 +483,10 @@ void PlanFragmentExecutor::attach_query_context(const UniqueId& query_id) {
 
 void PlanFragmentExecutor::detach_query_context() {
     if (_has_increment_num_instances && _query_ctx != nullptr) {
-        QueryContextManager::instance()->unregister(_query_ctx->query_id());
+        _query_ctx->decrement_num_instances();
+        if (_query_ctx->is_removable()) {
+            QueryContextManager::instance()->remove(_query_ctx->query_id());
+        }
     }
 }
 

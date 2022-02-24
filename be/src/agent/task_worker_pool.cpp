@@ -39,6 +39,7 @@
 #include "gen_cpp/Types_types.h"
 #include "gutil/strings/substitute.h"
 #include "runtime/exec_env.h"
+#include "runtime/query_context.h"
 #include "runtime/snapshot_loader.h"
 #include "service/backend_options.h"
 #include "storage/data_dir.h"
@@ -154,6 +155,8 @@ void TaskWorkerPool::start() {
     case TaskWorkerType::UPDATE_TABLET_META_INFO:
         _callback_function = _update_tablet_meta_worker_thread_callback;
         break;
+    case TaskWorkerType::CLEAN_QUERY_CONTEXT:
+        _callback_function = _clean_query_context_thread_callback;
     default:
         // pass
         break;
@@ -1004,6 +1007,15 @@ void* TaskWorkerPool::_update_tablet_meta_worker_thread_callback(void* arg_this)
 
         worker_pool_this->_finish_task(finish_task_request);
         worker_pool_this->_remove_task_info(agent_task_req.task_type, agent_task_req.signature);
+    }
+    return (void*)nullptr;
+}
+
+void* TaskWorkerPool::_clean_query_context_thread_callback(void* arg_this) {
+    TaskWorkerPool* worker_pool_this = (TaskWorkerPool*)arg_this;
+    while (!worker_pool_this->_stopped) {
+        starrocks::QueryContextManager::instance()->clean_removable_query_contexts();
+        sleep(10);
     }
     return (void*)nullptr;
 }

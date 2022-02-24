@@ -83,6 +83,7 @@ private:
     std::unique_ptr<TaskWorkerPool> _move_dir_workers;
     std::unique_ptr<TaskWorkerPool> _recover_tablet_workers;
     std::unique_ptr<TaskWorkerPool> _update_tablet_meta_info_workers;
+    std::unique_ptr<TaskWorkerPool> _clean_query_context_workers;
 };
 
 } // end namespace starrocks
