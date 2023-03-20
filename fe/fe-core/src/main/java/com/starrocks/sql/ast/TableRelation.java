@@ -48,6 +48,17 @@ public class TableRelation extends Relation {
         return partitionNames;
     }
 
+<<<<<<< HEAD
+=======
+    public void setPartitionNames(PartitionNames partitionNames) {
+        this.partitionNames = partitionNames;
+    }
+
+    public boolean getHasHintsPartitionNames() {
+        return partitionNames != null;
+    }
+
+>>>>>>> e4034dabb ([BugFix] forbid MV rewrite when query has tablet or partition hints (#19666))
     public List<Long> getTabletIds() {
         return tabletIds;
     }
