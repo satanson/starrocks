@@ -98,7 +98,6 @@ public class Memo {
         if (groupExpressions.get(groupExpression) != null) {
             GroupExpression existedGroupExpression = groupExpressions.get(groupExpression);
             Group existedGroup = existedGroupExpression.getGroup();
-
             if (needMerge(targetGroup, existedGroup)) {
                 mergeGroup(existedGroup, targetGroup);
             }
@@ -142,7 +141,10 @@ public class Memo {
             Preconditions.checkState(group != targetGroup);
             inputs.add(group);
         }
-
+        //if (expression.getInputs().stream().anyMatch(input -> input.getOp().hasSalt())) {
+        //    expression.getOp().setSalt(expression.getInputs().stream().map(input -> input.getOp().getSalt()).max(
+        //            Comparator.comparingLong(i -> i)).orElse(0L));
+        //}
         GroupExpression groupExpression = new GroupExpression(expression.getOp(), inputs);
         Pair<Boolean, GroupExpression> result = insertGroupExpression(groupExpression, targetGroup);
         if (result.first && targetGroup == null) {

@@ -464,6 +464,17 @@ public class SelectStmtWithCaseWhenTest {
     }
 
     @Test
+    public void testCaseWhenWithManyBranches2() throws Exception {
+        String sqlTemp = "select * from test.t0 where (case \n" +
+                "   when ship_mode = 1 then 0\n" +
+                "   when ship_mode is NULL then 1\n" +
+                "   else 2 end)  != 0";
+
+        String plan = UtFrameUtils.getVerboseFragmentPlan(starRocksAssert.getCtx(), sqlTemp);
+        System.out.println(plan);
+    }
+
+    @Test
     public void testIf() throws Exception {
         String[][] testCases = new String[][] {
                 {"select * from test.t0 where if(region='USA', 1, 0) = 1",

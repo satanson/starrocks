@@ -194,6 +194,7 @@ Status ExchangeSinkOperator::Channel::add_rows_selective(Chunk* chunk, int32_t d
         _chunks[driver_sequence] = chunk->clone_empty_with_slot(size);
     }
 
+    _chunks[driver_sequence]->memory_usage();
     if (_chunks[driver_sequence]->num_rows() + size > state->chunk_size()) {
         RETURN_IF_ERROR(send_one_chunk(state, _chunks[driver_sequence].get(), driver_sequence, false));
         // we only clear column data, because we need to reuse column schema

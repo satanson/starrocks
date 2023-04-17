@@ -151,6 +151,8 @@ public final class LogicalOlapScanOperator extends LogicalScanOperator {
 
     @Override
     public boolean equals(Object o) {
+        return false;
+        /*
         if (this == o) {
             return true;
         }
@@ -166,6 +168,8 @@ public final class LogicalOlapScanOperator extends LogicalScanOperator {
                 Objects.equals(partitionNames, that.partitionNames) &&
                 Objects.equals(selectedTabletId, that.selectedTabletId) &&
                 Objects.equals(hintsTabletIds, that.hintsTabletIds);
+
+         */
     }
 
     @Override

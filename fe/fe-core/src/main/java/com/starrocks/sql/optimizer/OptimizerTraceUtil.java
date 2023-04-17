@@ -181,6 +181,7 @@ public class OptimizerTraceUtil {
                 }
             }
             LOG.info(sb.toString());
+            // System.out.println(sb);
             traceInfo.recordAppliedRule(rule.toString());
         }
     }

@@ -154,7 +154,6 @@ public class ScalarOperatorToExpr {
                 context.colRefToExpr.put(node, expr);
                 return expr;
             }
-
             if (expr.getType().isNull()) {
                 hackTypeNull(expr);
             }
