@@ -16,6 +16,7 @@ on:
         description: 'TARGET BRANCH'
         required: true
         type: string
+        default: 'main'
       DEBUG:
         required: true
         type: boolean
