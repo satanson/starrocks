@@ -1,0 +1,27 @@
+name: MERGED PIPELINE
+
+on:
+  pull_request:
+    branches:
+      - main
+
+    types:
+      - closed
+jobs:
+
+  delete-branch:
+    runs-on: ubuntu-latest
+    if: >
+      contains(github.event.pull_request.title, '(sync #') &&
+      contains(github.event.pull_request.labels.*.name, 'sync') &&
+      startsWith(github.head_ref, ${{ github.base_ref }}-sync-)
+    env:
+      PR_NUMBER: ${{ github.event.number }}
+    steps:
+      - name: DELETE BRANCH
+        run: |
+          set -x
+          ori_pr=`echo ${{ github.head_ref }} | awk -F'-' '{print $NF}'`
+          sync_branch="${{ github.base_ref }}-sync-${ori_pr}"
+          curl -s -X DELETE -u username:${{secrets.SYNC_PAT}} https://api.github.com/repos/${{ github.repository }}/git/refs/heads/${{ github.head_ref }}
+          curl -s -X DELETE -u username:${{secrets.SYNC_PAT}} https://api.github.com/repos/${{ github.repository }}/git/refs/heads/${sync_branch}
