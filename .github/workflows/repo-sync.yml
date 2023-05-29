@@ -161,6 +161,7 @@ jobs:
           pr_body: ${{ steps.cherry-pick.outputs.CONFLICT_INFO }}${{ env.PR_BODY }}
           github_token: ${{ secrets.SYNC_PAT }}
           pr_reviewer: ${{ needs.pr-info.outputs.assignees }}
+          pr_allow_empty: true
 
       # previous pr files' check conflict
       - name: Create pending pull request
@@ -175,6 +176,7 @@ jobs:
             Previous prs: ${{ steps.previous-check.outputs.CONFLICT_PRS }}
           github_token: ${{ secrets.SYNC_PAT }}
           pr_reviewer: ${{ needs.pr-info.outputs.assignees }}
+          pr_allow_empty: true
 
       # Unexpected failure
       - name: fail checker
