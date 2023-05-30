@@ -1,0 +1,45 @@
+name: SCAN PENDING PRS
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+
+permissions:
+  checks: write
+  actions: write
+  contents: write
+  deployments: write
+  discussions: write
+  issues: write
+  packages: write
+  pages: write
+  pull-requests: write
+  repository-projects: write
+  security-events: write
+  statuses: write
+
+concurrency:
+  group: REPO-SYNC
+  cancel-in-progress: false
+
+jobs:
+
+  scan-pending-pr:
+    name: SCAN PENDING PRS
+    runs-on: ubuntu-latest
+    steps:
+
+      - name: checkout tools
+        uses: actions/checkout@v3
+        with:
+          repository: StarRocks/elastic-service
+          path: './elastic-service'
+          token: ${{ secrets.SYNC_PAT }}
+
+      - name: scan
+        id: scan
+        run: |
+          cd ${{ github.workspace }}/elastic-service
+          python3 lib/pr_sequence_checker.py scan
