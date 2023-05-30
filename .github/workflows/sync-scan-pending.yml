@@ -21,7 +21,7 @@ permissions:
   statuses: write
 
 concurrency:
-  group: REPO-SYNC
+  group: PENDING-SCAN
   cancel-in-progress: false
 
 jobs:
