@@ -40,6 +40,8 @@ jobs:
 
       - name: scan
         id: scan
+        env:
+          GITHUB_TOKEN: ${{ secrets.SYNC_PAT }}
         run: |
           cd ${{ github.workspace }}/elastic-service
           python3 lib/pr_sequence_checker.py scan
