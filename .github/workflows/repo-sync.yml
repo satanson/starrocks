@@ -71,7 +71,7 @@ jobs:
           assignees=`echo $assignees | sed 's/"//g' | sed 's/ /, /g'`
           assignees=andyziye
           body=`echo ${info} | jq .body | sed 's#\n#<br />#g'`
-          title=`echo ${info} | jq .title | sed 's/"//g'`
+          title=`echo ${info} | jq .title | sed 's/.\(.*\)/\1/' | sed 's/\(.*\)./\1/'`
           echo "assignees=${assignees}" >> $GITHUB_OUTPUT
           echo "body=${body//\`/\\\`}" >> $GITHUB_OUTPUT
           echo "title=${title}" >> $GITHUB_OUTPUT
