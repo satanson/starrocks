@@ -36,10 +36,6 @@ permissions:
   security-events: write
   statuses: write
 
-concurrency:
-  group: REPO-SYNC
-  cancel-in-progress: false
-
 jobs:
 
   pr-info:
@@ -77,7 +73,7 @@ jobs:
           body=`echo ${info} | jq .body | sed 's#\n#<br />#g'`
           title=`echo ${info} | jq .title | sed 's/"//g'`
           echo "assignees=${assignees}" >> $GITHUB_OUTPUT
-          echo "body=${body}" >> $GITHUB_OUTPUT
+          echo "body=${body//\`/\\\`}" >> $GITHUB_OUTPUT
           echo "title=${title}" >> $GITHUB_OUTPUT
 
   repo-sync:
@@ -100,6 +96,7 @@ jobs:
           echo ${{ needs.pr-info.outputs.body }} > tmp_info.txt
           sed -i 's#\\r\\n#\r\n#g' tmp_info.txt
           echo PR_BODY=`cat tmp_info.txt` >> $GITHUB_ENV
+          rm -rf ${{ github.workspace }}/*
 
       - uses: actions/checkout@v3
         with:
