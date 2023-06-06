@@ -144,7 +144,8 @@ jobs:
           ./lib/run_cherry_pick.sh -c ${{ inputs.COMMIT_ID }}
           cd ${{ github.workspace }}
           rm -rf ${{ github.workspace }}/elastic-service
-          git commit -m "${{ needs.pr-info.outputs.title }}" --allow-empty
+          title="${{ needs.pr-info.outputs.title }}"
+          git commit -m "${title//\\\"/\"}" --allow-empty
           git push -u origin ${{ inputs.BRANCH }}-sync-pr-${{ inputs.PR_ID }}
 
       - uses: repo-sync/pull-request@v2.12.1
