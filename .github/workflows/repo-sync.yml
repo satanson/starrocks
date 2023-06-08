@@ -223,6 +223,8 @@ jobs:
           elif [[ "${{ steps.create_pending_pr.outcome }}" == 'success' ]]; then
             msg_type="pending"
             this_pr_url=${{ steps.create_pending_pr.outputs.pr_url }}
+          elif [[ "${{ steps.create_pr.outcome }}" == 'success' ]]; then
+            exit 0;
           else
             msg_type="error"
             this_pr_url=${{ steps.create_error_pr.outputs.pr_url }}
