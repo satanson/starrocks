@@ -58,8 +58,7 @@ jobs:
         run: |
           rm -rf ${{ github.workspace }}
           mkdir -p ${{ github.workspace }}
-          export PATH=/var/local/env/tools:$PATH
-
+          
       - name: add automerge label
         uses: actions-ecosystem/action-add-labels@v1
         with:
@@ -73,8 +72,6 @@ jobs:
 
       - name: automerge
         uses: peter-evans/enable-pull-request-automerge@v3
-        env:
-          PATH: /var/local/env/tools:$PATH
         with:
           token: ${{ secrets.SYNC_PAT }}
           pull-request-number: ${{ github.event.pull_request.number }}
