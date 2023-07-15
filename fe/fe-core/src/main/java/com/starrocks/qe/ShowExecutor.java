@@ -45,6 +45,7 @@ import com.starrocks.analysis.SlotRef;
 import com.starrocks.analysis.StringLiteral;
 import com.starrocks.analysis.TableName;
 import com.starrocks.analysis.TableRef;
+import com.starrocks.analysis.TypeDef;
 import com.starrocks.authentication.AuthenticationMgr;
 import com.starrocks.authentication.UserAuthenticationInfo;
 import com.starrocks.backup.AbstractJob;
@@ -99,6 +100,13 @@ import com.starrocks.common.util.OrderByPair;
 import com.starrocks.common.util.PrintableMap;
 import com.starrocks.common.util.TimeUtils;
 import com.starrocks.credential.CloudCredentialUtil;
+import com.starrocks.epack.privilege.DbUID;
+import com.starrocks.epack.privilege.Policy;
+import com.starrocks.epack.sql.ast.CreatePolicyStmt;
+import com.starrocks.epack.sql.ast.PolicyName;
+import com.starrocks.epack.sql.ast.PolicyType;
+import com.starrocks.epack.sql.ast.ShowCreatePolicyStmt;
+import com.starrocks.epack.sql.ast.ShowPolicyStmt;
 import com.starrocks.load.DeleteMgr;
 import com.starrocks.load.ExportJob;
 import com.starrocks.load.ExportMgr;
@@ -199,6 +207,7 @@ import com.starrocks.sql.ast.ShowVariablesStmt;
 import com.starrocks.sql.ast.ShowWarehousesStmt;
 import com.starrocks.sql.ast.UserIdentity;
 import com.starrocks.sql.common.MetaUtils;
+import com.starrocks.sql.parser.NodePosition;
 import com.starrocks.statistic.AnalyzeJob;
 import com.starrocks.statistic.AnalyzeStatus;
 import com.starrocks.statistic.BasicStatsMeta;
@@ -357,6 +366,10 @@ public class ShowExecutor {
             handleShowResourceGroup();
         } else if (stmt instanceof ShowUserStmt) {
             handleShowUser();
+        } else if (stmt instanceof ShowPolicyStmt) {
+            handleShowPolicy();
+        } else if (stmt instanceof ShowCreatePolicyStmt) {
+            handleShowCreatePolicy();
         } else if (stmt instanceof ShowCatalogsStmt) {
             handleShowCatalogs();
         } else if (stmt instanceof ShowComputeNodesStmt) {
@@ -394,7 +407,8 @@ public class ShowExecutor {
                         .getUserAuthenticationInfoByUserIdentity(connectContext.getCurrentUserIdentity());
             } else {
                 userAuthenticationInfo =
-                        authenticationManager.getUserAuthenticationInfoByUserIdentity(showAuthenticationStmt.getUserIdent());
+                        authenticationManager.getUserAuthenticationInfoByUserIdentity(
+                                showAuthenticationStmt.getUserIdent());
             }
             authenticationInfoMap.put(showAuthenticationStmt.getUserIdent(), userAuthenticationInfo);
         }
@@ -438,7 +452,6 @@ public class ShowExecutor {
                     if (matcher != null && !matcher.match(mvTable.getName())) {
                         continue;
                     }
-
 
                     AtomicBoolean baseTableHasPrivilege = new AtomicBoolean(true);
                     mvTable.getBaseTableInfos().forEach(baseTableInfo -> {
@@ -898,7 +911,6 @@ public class ShowExecutor {
                         continue;
                     }
 
-
                     if (!PrivilegeActions.checkAnyActionOnTable(connectContext, db.getFullName(), table.getName())) {
                         continue;
                     }
@@ -989,9 +1001,11 @@ public class ShowExecutor {
         if (!Strings.isNullOrEmpty(db.getLocation())) {
             createSqlBuilder.append("\nPROPERTIES (\"location\" = \"").append(db.getLocation()).append("\")");
         }
-        String storageVolumeId = GlobalStateMgr.getCurrentState().getStorageVolumeMgr().getStorageVolumeIdOfDb(db.getId());
+        String storageVolumeId =
+                GlobalStateMgr.getCurrentState().getStorageVolumeMgr().getStorageVolumeIdOfDb(db.getId());
         if (!Strings.isNullOrEmpty(storageVolumeId)) {
-            String volume = GlobalStateMgr.getCurrentState().getStorageVolumeMgr().getStorageVolumeName(storageVolumeId);
+            String volume =
+                    GlobalStateMgr.getCurrentState().getStorageVolumeMgr().getStorageVolumeName(storageVolumeId);
             createSqlBuilder.append("\nPROPERTIES (\"storage_volume\" = \"").append(volume).append("\")");
         }
         rows.add(Lists.newArrayList(showStmt.getDb(), createSqlBuilder.toString()));
@@ -1107,7 +1121,8 @@ public class ShowExecutor {
                                         rows.add(Lists.newArrayList(showStmt.getTable(), mvMeta.getOriginStmt(),
                                                 "utf8", "utf8_general_ci"));
                                     }
-                                    resultSet = new ShowResultSet(ShowCreateTableStmt.getMaterializedViewMetaData(), rows);
+                                    resultSet =
+                                            new ShowResultSet(ShowCreateTableStmt.getMaterializedViewMetaData(), rows);
                                     return;
                                 }
                             }
@@ -1405,7 +1420,8 @@ public class ShowExecutor {
         }
 
         if (routineLoadJobList != null) {
-            RoutineLoadFunctionalExprProvider fProvider = showRoutineLoadStmt.getFunctionalExprProvider(this.connectContext);
+            RoutineLoadFunctionalExprProvider fProvider =
+                    showRoutineLoadStmt.getFunctionalExprProvider(this.connectContext);
             rows = routineLoadJobList.parallelStream()
                     .filter(fProvider.getPredicateChain())
                     .sorted(fProvider.getOrderComparator())
@@ -1420,7 +1436,8 @@ public class ShowExecutor {
             throw new AnalysisException("There is no running job named " + showRoutineLoadStmt.getName()
                     + " in db " + showRoutineLoadStmt.getDbFullName()
                     + ". Include history? " + showRoutineLoadStmt.isIncludeHistory()
-                    + ", you can try `show all routine load job for job_name` if you want to list stopped and cancelled jobs");
+                    +
+                    ", you can try `show all routine load job for job_name` if you want to list stopped and cancelled jobs");
         }
         resultSet = new ShowResultSet(showRoutineLoadStmt.getMetaData(), rows);
     }
@@ -1481,7 +1498,8 @@ public class ShowExecutor {
         }
 
         if (streamLoadTaskList != null) {
-            StreamLoadFunctionalExprProvider fProvider = showStreamLoadStmt.getFunctionalExprProvider(this.connectContext);
+            StreamLoadFunctionalExprProvider fProvider =
+                    showStreamLoadStmt.getFunctionalExprProvider(this.connectContext);
             rows = streamLoadTaskList.parallelStream()
                     .filter(fProvider.getPredicateChain())
                     .sorted(fProvider.getOrderComparator())
@@ -1659,7 +1677,6 @@ public class ShowExecutor {
                             connectContext.getRemoteIP(),
                             tableName);
                 }
-
 
                 Table table = db.getTable(tableName);
                 if (table == null) {
@@ -2019,7 +2036,6 @@ public class ShowExecutor {
 
             BackupJob backupJob = (BackupJob) jobI;
 
-
             // check privilege
             List<TableRef> tableRefs = backupJob.getTableRef();
             AtomicBoolean privilegeDeny = new AtomicBoolean(false);
@@ -2110,7 +2126,8 @@ public class ShowExecutor {
         }
     }
 
-    private List<List<String>> privilegeToRowString(AuthorizationMgr authorizationManager, GrantRevokeClause userOrRoleName,
+    private List<List<String>> privilegeToRowString(AuthorizationMgr authorizationManager,
+                                                    GrantRevokeClause userOrRoleName,
                                                     Map<ObjectType, List<PrivilegeEntry>> typeToPrivilegeEntryList)
             throws PrivilegeException {
         List<List<String>> infos = new ArrayList<>();
@@ -2212,6 +2229,50 @@ public class ShowExecutor {
         }
 
         resultSet = new ShowResultSet(stmt.getMetaData(), rowSet);
+    }
+
+    private void handleShowPolicy() {
+        ShowPolicyStmt showPolicyStmt = (ShowPolicyStmt) stmt;
+        Map<String, Policy> policies = GlobalStateMgr.getCurrentState().getSecurityPolicyManager()
+                .getOrCreateNamePolicyMapByDBUID(
+                        DbUID.generate(showPolicyStmt.getCatalog(), showPolicyStmt.getDbName()),
+                        showPolicyStmt.getPolicyType());
+        List<List<String>> rows = new ArrayList<>();
+        if (policies != null) {
+            for (Map.Entry<String, Policy> policyEntry : policies.entrySet()) {
+                List<String> row = new ArrayList<>();
+                row.add(policyEntry.getKey());
+                Policy policy = policyEntry.getValue();
+                if (policy.getPolicyType().equals(PolicyType.ROW_ACCESS)) {
+                    row.add("ROW ACCESS");
+                } else {
+                    row.add("MASKING");
+                }
+                row.add(showPolicyStmt.getCatalog());
+                row.add(showPolicyStmt.getDbName());
+
+                rows.add(row);
+            }
+        }
+        resultSet = new ShowResultSet(stmt.getMetaData(), rows);
+    }
+
+    private void handleShowCreatePolicy() {
+        ShowCreatePolicyStmt describePolicyStmt = (ShowCreatePolicyStmt) stmt;
+        Policy policy = GlobalStateMgr.getCurrentState().getSecurityPolicyManager()
+                .getPolicyByName(describePolicyStmt.getPolicyType(), describePolicyStmt.getPolicyName(), false);
+
+        List<String> row = new ArrayList<>();
+        row.add(policy.getName());
+
+        row.add(AstToSQLBuilder.toSQL(new CreatePolicyStmt(false, policy.getPolicyType(),
+                new PolicyName("", "", policy.getName(), NodePosition.ZERO),
+                policy.getArgNames(),
+                policy.getArgTypes().stream().map(TypeDef::new).collect(Collectors.toList()),
+                new TypeDef(policy.getRetType()),
+                policy.getPolicyExpression(), policy.getComment(), NodePosition.ZERO)));
+
+        resultSet = new ShowResultSet(stmt.getMetaData(), Collections.singletonList(row));
     }
 
     private void handleAdminShowTabletStatus() throws AnalysisException {
@@ -2561,7 +2622,8 @@ public class ShowExecutor {
         PatternMatcher finalMatcher = matcher;
         storageVolumeNames = storageVolumeNames.stream()
                 .filter(storageVolumeName -> finalMatcher == null || finalMatcher.match(storageVolumeName))
-                .filter(storageVolumeName -> PrivilegeActions.checkAnyActionOnStorageVolume(connectContext, storageVolumeName))
+                .filter(storageVolumeName -> PrivilegeActions.checkAnyActionOnStorageVolume(connectContext,
+                        storageVolumeName))
                 .collect(Collectors.toList());
         for (String storageVolumeName : storageVolumeNames) {
             rows.add(Lists.newArrayList(storageVolumeName));

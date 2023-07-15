@@ -43,6 +43,7 @@
 #include "exec/schema_scanner/schema_variables_scanner.h"
 #include "exec/schema_scanner/schema_views_scanner.h"
 #include "exec/schema_scanner/starrocks_grants_to_scanner.h"
+#include "exec/schema_scanner/starrocks_policy_references_scanner.h"
 #include "exec/schema_scanner/starrocks_role_edges_scanner.h"
 
 namespace starrocks {
@@ -158,6 +159,8 @@ std::unique_ptr<SchemaScanner> SchemaScanner::create(TSchemaTableType::type type
         return std::make_unique<StarrocksGrantsToScanner>(TGrantsToType::ROLE);
     case TSchemaTableType::STARROCKS_GRANT_TO_USERS:
         return std::make_unique<StarrocksGrantsToScanner>(TGrantsToType::USER);
+    case TSchemaTableType::STARROCKS_POLICY_REFERENCES:
+        return std::make_unique<StarrocksPolicyReferencesScanner>();
     default:
         return std::make_unique<SchemaDummyScanner>();
     }

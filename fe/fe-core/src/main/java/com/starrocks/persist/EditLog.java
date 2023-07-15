@@ -59,6 +59,17 @@ import com.starrocks.common.io.DataOutputBuffer;
 import com.starrocks.common.io.Text;
 import com.starrocks.common.io.Writable;
 import com.starrocks.common.util.SmallFileMgr.SmallFile;
+import com.starrocks.epack.persist.AlterPolicyLog;
+import com.starrocks.epack.persist.ApplyOrRevokeMaskingPolicyLog;
+import com.starrocks.epack.persist.ApplyOrRevokeRowAccessPolicyLog;
+import com.starrocks.epack.persist.CreatePolicyLog;
+import com.starrocks.epack.persist.CreateTableInfoEPack;
+import com.starrocks.epack.persist.DropPolicyLog;
+import com.starrocks.epack.persist.OperationTypeEPack;
+import com.starrocks.epack.privilege.DbUID;
+import com.starrocks.epack.privilege.Policy;
+import com.starrocks.epack.sql.ast.PolicyName;
+import com.starrocks.epack.sql.ast.PolicyType;
 import com.starrocks.ha.LeaderInfo;
 import com.starrocks.journal.JournalEntity;
 import com.starrocks.journal.JournalInconsistentException;
@@ -219,7 +230,7 @@ public class EditLog {
                 }
                 case OperationType.OP_CREATE_TABLE:
                 case OperationType.OP_CREATE_TABLE_V2: {
-                    CreateTableInfo info = (CreateTableInfo) journal.getData();
+                    CreateTableInfoEPack info = (CreateTableInfoEPack) journal.getData();
 
                     if (info.getTable().isMaterializedView()) {
                         LOG.info("Begin to unprotect create materialized view. db = " + info.getDbName()
@@ -229,7 +240,7 @@ public class EditLog {
                         LOG.info("Begin to unprotect create table. db = "
                                 + info.getDbName() + " table = " + info.getTable().getId());
                     }
-                    globalStateMgr.replayCreateTable(info);
+                    globalStateMgr.getLocalMetastore().replayCreateTable(info);
                     break;
                 }
                 case OperationType.OP_DROP_TABLE:
@@ -246,11 +257,11 @@ public class EditLog {
                     break;
                 }
                 case OperationType.OP_CREATE_MATERIALIZED_VIEW: {
-                    CreateTableInfo info = (CreateTableInfo) journal.getData();
+                    CreateTableInfoEPack info = (CreateTableInfoEPack) journal.getData();
                     LOG.info("Begin to unprotect create materialized view. db = " + info.getDbName()
                             + " create materialized view = " + info.getTable().getId()
                             + " tableName = " + info.getTable().getName());
-                    globalStateMgr.replayCreateTable(info);
+                    globalStateMgr.getLocalMetastore().replayCreateTable(info);
                     break;
                 }
                 case OperationType.OP_ADD_PARTITION_V2: {
@@ -548,7 +559,8 @@ public class EditLog {
                 }
                 case OperationType.OP_META_VERSION_V2: {
                     MetaVersion metaVersion = (MetaVersion) journal.getData();
-                    if (!MetaVersion.isCompatible(metaVersion.getStarRocksVersion(), FeConstants.STARROCKS_META_VERSION)) {
+                    if (!MetaVersion.isCompatible(metaVersion.getStarRocksVersion(),
+                            FeConstants.STARROCKS_META_VERSION)) {
                         throw new JournalInconsistentException("Not compatible with meta version "
                                 + metaVersion.getStarRocksVersion()
                                 + ", current version is " + FeConstants.STARROCKS_META_VERSION);
@@ -1043,6 +1055,50 @@ public class EditLog {
                     globalStateMgr.replayAuthUpgrade(info);
                     break;
                 }
+                case OperationTypeEPack.OP_DROP_POLICY: {
+                    DropPolicyLog policy = (DropPolicyLog) journal.getData();
+                    globalStateMgr.getSecurityPolicyManager().replayDropPolicy(policy);
+                    break;
+                }
+                case OperationTypeEPack.OP_ALTER_POLICY_SET_BODY:
+                case OperationTypeEPack.OP_ALTER_POLICY_SET_COMMENT:
+                case OperationTypeEPack.OP_ALTER_POLICY_RENAME: {
+                    AlterPolicyLog alterPolicyInfo = (AlterPolicyLog) journal.getData();
+                    globalStateMgr.getSecurityPolicyManager().replayAlterPolicy(alterPolicyInfo);
+                    break;
+                }
+                case OperationTypeEPack.OP_APPLY_MASKING_POLICY: {
+                    ApplyOrRevokeMaskingPolicyLog applyMaskingPolicyInfo =
+                            (ApplyOrRevokeMaskingPolicyLog) journal.getData();
+                    globalStateMgr.getSecurityPolicyManager().replayApplyMaskingPolicyContext(applyMaskingPolicyInfo);
+                    break;
+                }
+                case OperationTypeEPack.OP_APPLY_ROW_ACCESS_POLICY: {
+                    ApplyOrRevokeRowAccessPolicyLog applyRowAccessPolicyInfo =
+                            (ApplyOrRevokeRowAccessPolicyLog) journal.getData();
+                    globalStateMgr.getSecurityPolicyManager()
+                            .replayApplyRowAccessPolicyContext(applyRowAccessPolicyInfo);
+                    break;
+                }
+                case OperationTypeEPack.OP_REVOKE_MASKING_POLICY: {
+                    ApplyOrRevokeMaskingPolicyLog applyMaskingPolicyInfo =
+                            (ApplyOrRevokeMaskingPolicyLog) journal.getData();
+                    globalStateMgr.getSecurityPolicyManager().replayRevokeMaskingPolicyContext(applyMaskingPolicyInfo);
+                    break;
+                }
+                case OperationTypeEPack.OP_REVOKE_ROW_ACCESS_POLICY: {
+                    ApplyOrRevokeRowAccessPolicyLog applyRowAccessPolicyInfo =
+                            (ApplyOrRevokeRowAccessPolicyLog) journal.getData();
+                    globalStateMgr.getSecurityPolicyManager()
+                            .replayRevokeRowAccessPolicyContext(applyRowAccessPolicyInfo);
+                    break;
+                }
+                case OperationTypeEPack.OP_CREATE_MASKING_POLICY:
+                case OperationTypeEPack.OP_CREATE_ROW_ACCESS_POLICY: {
+                    CreatePolicyLog policy = (CreatePolicyLog) journal.getData();
+                    globalStateMgr.getSecurityPolicyManager().replayCreatePolicy(policy);
+                    break;
+                }
                 case OperationType.OP_MV_JOB_STATE: {
                     MVMaintenanceJob job = (MVMaintenanceJob) journal.getData();
                     MaterializedViewMgr.getInstance().replay(job);
@@ -1222,7 +1278,7 @@ public class EditLog {
         }
     }
 
-    public void logCreateTable(CreateTableInfo info) {
+    public void logCreateTable(CreateTableInfoEPack info) {
         if (FeConstants.STARROCKS_META_VERSION >= StarRocksFEMetaVersion.VERSION_4) {
             logJsonObject(OperationType.OP_CREATE_TABLE_V2, info);
         } else {
@@ -1985,7 +2041,8 @@ public class EditLog {
             Map<Long, RolePrivilegeCollectionV2> rolePrivCollectionModified,
             short pluginId,
             short pluginVersion) {
-        RolePrivilegeCollectionInfo info = new RolePrivilegeCollectionInfo(rolePrivCollectionModified, pluginId, pluginVersion);
+        RolePrivilegeCollectionInfo info =
+                new RolePrivilegeCollectionInfo(rolePrivCollectionModified, pluginId, pluginVersion);
         logUpdateRolePrivilege(info);
     }
 
@@ -1997,12 +2054,63 @@ public class EditLog {
             Map<Long, RolePrivilegeCollectionV2> rolePrivCollectionModified,
             short pluginId,
             short pluginVersion) {
-        RolePrivilegeCollectionInfo info = new RolePrivilegeCollectionInfo(rolePrivCollectionModified, pluginId, pluginVersion);
+        RolePrivilegeCollectionInfo info =
+                new RolePrivilegeCollectionInfo(rolePrivCollectionModified, pluginId, pluginVersion);
         logEdit(OperationType.OP_DROP_ROLE_V2, info);
     }
 
     public void logAuthUpgrade(Map<String, Long> roleNameToId) {
         logEdit(OperationType.OP_AUTH_UPGRADE_V2, new AuthUpgradeInfo(roleNameToId));
+    }
+
+    public void logCreateMaskingPolicy(Policy policy) {
+        CreatePolicyLog createPolicyInfo = new CreatePolicyLog(policy);
+        logEdit(OperationTypeEPack.OP_CREATE_MASKING_POLICY, createPolicyInfo);
+    }
+
+    public void logCreateRowAccessPolicy(Policy policy) {
+        CreatePolicyLog createPolicyInfo = new CreatePolicyLog(policy);
+        logEdit(OperationTypeEPack.OP_CREATE_ROW_ACCESS_POLICY, createPolicyInfo);
+    }
+
+    public void logDropPolicy(PolicyName policyName, DbUID db, Policy policy) {
+        DropPolicyLog dropPolicyLog =
+                new DropPolicyLog(policy.getPolicyType(), policy.getPolicyId(), db, policyName.getName());
+        logEdit(OperationTypeEPack.OP_DROP_POLICY, dropPolicyLog);
+    }
+
+    public void logAlterPolicySetBody(PolicyName policyName, PolicyType policyType, String policyBody) {
+        AlterPolicyLog alterPolicyInfo = new AlterPolicyLog(policyName, policyType,
+                new AlterPolicyLog.PolicySetBodyInfo(policyBody));
+        logEdit(OperationTypeEPack.OP_ALTER_POLICY_SET_BODY, alterPolicyInfo);
+    }
+
+    public void logAlterPolicySetComment(PolicyName policyName, PolicyType policyType, String comment) {
+        AlterPolicyLog alterPolicyInfo = new AlterPolicyLog(policyName, policyType,
+                new AlterPolicyLog.PolicySetCommentInfo(comment));
+        logEdit(OperationTypeEPack.OP_ALTER_POLICY_SET_COMMENT, alterPolicyInfo);
+    }
+
+    public void logAlterPolicyRename(PolicyName policyName, PolicyType policyType, String newPolicyName) {
+        AlterPolicyLog alterPolicyInfo = new AlterPolicyLog(policyName, policyType,
+                new AlterPolicyLog.PolicyRenameInfo(newPolicyName));
+        logEdit(OperationTypeEPack.OP_ALTER_POLICY_RENAME, alterPolicyInfo);
+    }
+
+    public void logApplyMaskingPolicy(ApplyOrRevokeMaskingPolicyLog applyMaskingPolicyInfo) {
+        logEdit(OperationTypeEPack.OP_APPLY_MASKING_POLICY, applyMaskingPolicyInfo);
+    }
+
+    public void logApplyRowAccessPolicy(ApplyOrRevokeRowAccessPolicyLog applyMaskingPolicyInfo) {
+        logEdit(OperationTypeEPack.OP_APPLY_ROW_ACCESS_POLICY, applyMaskingPolicyInfo);
+    }
+
+    public void logRevokeMaskingPolicy(ApplyOrRevokeMaskingPolicyLog applyMaskingPolicyInfo) {
+        logEdit(OperationTypeEPack.OP_REVOKE_MASKING_POLICY, applyMaskingPolicyInfo);
+    }
+
+    public void logRevokeRowAccessPolicy(ApplyOrRevokeRowAccessPolicyLog applyMaskingPolicyInfo) {
+        logEdit(OperationTypeEPack.OP_REVOKE_ROW_ACCESS_POLICY, applyMaskingPolicyInfo);
     }
 
     public void logModifyBinlogConfig(ModifyTablePropertyOperationLog log) {

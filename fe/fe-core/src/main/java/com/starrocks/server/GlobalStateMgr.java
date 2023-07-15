@@ -141,6 +141,8 @@ import com.starrocks.connector.hive.ConnectorTableMetadataProcessor;
 import com.starrocks.connector.hive.events.MetastoreEventsProcessor;
 import com.starrocks.consistency.ConsistencyChecker;
 import com.starrocks.credential.CloudCredentialUtil;
+import com.starrocks.epack.persist.SRMetaBlockIDEPack;
+import com.starrocks.epack.privilege.SecurityPolicyMgr;
 import com.starrocks.external.starrocks.StarRocksRepository;
 import com.starrocks.ha.FrontendNodeType;
 import com.starrocks.ha.HAProtocol;
@@ -186,7 +188,6 @@ import com.starrocks.persist.AuthUpgradeInfo;
 import com.starrocks.persist.BackendIdsUpdateInfo;
 import com.starrocks.persist.BackendTabletsInfo;
 import com.starrocks.persist.ChangeMaterializedViewRefreshSchemeLog;
-import com.starrocks.persist.CreateTableInfo;
 import com.starrocks.persist.DropPartitionInfo;
 import com.starrocks.persist.EditLog;
 import com.starrocks.persist.GlobalVarPersistInfo;
@@ -448,6 +449,8 @@ public class GlobalStateMgr {
     private AuthorizationMgr authorizationMgr;
 
     private DomainResolver domainResolver;
+
+    private SecurityPolicyMgr securityPolicyManager;
 
     private TabletSchedulerStat stat;
 
@@ -854,6 +857,10 @@ public class GlobalStateMgr {
         return authorizationMgr;
     }
 
+    public SecurityPolicyMgr getSecurityPolicyManager() {
+        return securityPolicyManager;
+    }
+
     public ResourceGroupMgr getResourceGroupMgr() {
         return resourceGroupMgr;
     }
@@ -1097,6 +1104,7 @@ public class GlobalStateMgr {
             this.authenticationMgr = new AuthenticationMgr();
             this.domainResolver = new DomainResolver(authenticationMgr);
             this.authorizationMgr = new AuthorizationMgr(this, null);
+            this.securityPolicyManager = new SecurityPolicyMgr();
             LOG.info("using new privilege framework..");
         } else {
             this.domainResolver = new DomainResolver(auth);
@@ -1266,7 +1274,8 @@ public class GlobalStateMgr {
                 // configuration. If it is upgraded from an old version, the original
                 // configuration is retained to avoid system stability problems caused by
                 // changes in concurrency
-                VariableMgr.setSystemVariable(VariableMgr.getDefaultSessionVariable(), new SystemVariable(SetType.GLOBAL,
+                VariableMgr.setSystemVariable(VariableMgr.getDefaultSessionVariable(),
+                        new SystemVariable(SetType.GLOBAL,
                                 SessionVariable.ENABLE_ADAPTIVE_SINK_DOP,
                                 LiteralExpr.create("true", Type.BOOLEAN)),
                         false);
@@ -1453,36 +1462,38 @@ public class GlobalStateMgr {
             checkOpTypeValid();
 
             if (GlobalStateMgr.getCurrentStateStarRocksMetaVersion() >= StarRocksFEMetaVersion.VERSION_4) {
-                Map<SRMetaBlockID, SRMetaBlockLoader> loadImages = ImmutableMap.<SRMetaBlockID, SRMetaBlockLoader>builder()
-                        .put(SRMetaBlockID.NODE_MGR, nodeMgr::load)
-                        .put(SRMetaBlockID.LOCAL_META_STORE, localMetastore::load)
-                        .put(SRMetaBlockID.ALTER_MGR, alterJobMgr::load)
-                        .put(SRMetaBlockID.CATALOG_RECYCLE_BIN, recycleBin::load)
-                        .put(SRMetaBlockID.VARIABLE_MGR, VariableMgr::load)
-                        .put(SRMetaBlockID.RESOURCE_MGR, resourceMgr::loadResourcesV2)
-                        .put(SRMetaBlockID.EXPORT_MGR, exportMgr::loadExportJobV2)
-                        .put(SRMetaBlockID.BACKUP_MGR, backupHandler::loadBackupHandlerV2)
-                        .put(SRMetaBlockID.AUTH, auth::load)
-                        .put(SRMetaBlockID.GLOBAL_TRANSACTION_MGR, globalTransactionMgr::loadTransactionStateV2)
-                        .put(SRMetaBlockID.COLOCATE_TABLE_INDEX, colocateTableIndex::loadColocateTableIndexV2)
-                        .put(SRMetaBlockID.ROUTINE_LOAD_MGR, routineLoadMgr::loadRoutineLoadJobsV2)
-                        .put(SRMetaBlockID.LOAD_MGR, loadMgr::loadLoadJobsV2JsonFormat)
-                        .put(SRMetaBlockID.SMALL_FILE_MGR, smallFileMgr::loadSmallFilesV2)
-                        .put(SRMetaBlockID.PLUGIN_MGR, pluginMgr::load)
-                        .put(SRMetaBlockID.DELETE_MGR, deleteMgr::load)
-                        .put(SRMetaBlockID.ANALYZE_MGR, analyzeMgr::load)
-                        .put(SRMetaBlockID.RESOURCE_GROUP_MGR, resourceGroupMgr::load)
-                        .put(SRMetaBlockID.AUTHENTICATION_MGR, authenticationMgr::loadV2)
-                        .put(SRMetaBlockID.AUTHORIZATION_MGR, authorizationMgr::loadV2)
-                        .put(SRMetaBlockID.TASK_MGR, taskManager::loadTasksV2)
-                        .put(SRMetaBlockID.CATALOG_MGR, catalogMgr::load)
-                        .put(SRMetaBlockID.INSERT_OVERWRITE_JOB_MGR, insertOverwriteJobMgr::load)
-                        .put(SRMetaBlockID.COMPACTION_MGR, compactionMgr::load)
-                        .put(SRMetaBlockID.STREAM_LOAD_MGR, streamLoadMgr::load)
-                        .put(SRMetaBlockID.MATERIALIZED_VIEW_MGR, MaterializedViewMgr.getInstance()::load)
-                        .put(SRMetaBlockID.GLOBAL_FUNCTION_MGR, globalFunctionMgr::load)
-                        .put(SRMetaBlockID.STORAGE_VOLUME_MGR, storageVolumeMgr::load)
-                        .build();
+                Map<SRMetaBlockID, SRMetaBlockLoader> loadImages =
+                        ImmutableMap.<SRMetaBlockID, SRMetaBlockLoader>builder()
+                                .put(SRMetaBlockID.NODE_MGR, nodeMgr::load)
+                                .put(SRMetaBlockID.LOCAL_META_STORE, localMetastore::load)
+                                .put(SRMetaBlockID.ALTER_MGR, alterJobMgr::load)
+                                .put(SRMetaBlockID.CATALOG_RECYCLE_BIN, recycleBin::load)
+                                .put(SRMetaBlockID.VARIABLE_MGR, VariableMgr::load)
+                                .put(SRMetaBlockID.RESOURCE_MGR, resourceMgr::loadResourcesV2)
+                                .put(SRMetaBlockID.EXPORT_MGR, exportMgr::loadExportJobV2)
+                                .put(SRMetaBlockID.BACKUP_MGR, backupHandler::loadBackupHandlerV2)
+                                .put(SRMetaBlockID.AUTH, auth::load)
+                                .put(SRMetaBlockID.GLOBAL_TRANSACTION_MGR, globalTransactionMgr::loadTransactionStateV2)
+                                .put(SRMetaBlockID.COLOCATE_TABLE_INDEX, colocateTableIndex::loadColocateTableIndexV2)
+                                .put(SRMetaBlockID.ROUTINE_LOAD_MGR, routineLoadMgr::loadRoutineLoadJobsV2)
+                                .put(SRMetaBlockID.LOAD_MGR, loadMgr::loadLoadJobsV2JsonFormat)
+                                .put(SRMetaBlockID.SMALL_FILE_MGR, smallFileMgr::loadSmallFilesV2)
+                                .put(SRMetaBlockID.PLUGIN_MGR, pluginMgr::load)
+                                .put(SRMetaBlockID.DELETE_MGR, deleteMgr::load)
+                                .put(SRMetaBlockID.ANALYZE_MGR, analyzeMgr::load)
+                                .put(SRMetaBlockID.RESOURCE_GROUP_MGR, resourceGroupMgr::load)
+                                .put(SRMetaBlockID.AUTHENTICATION_MGR, authenticationMgr::loadV2)
+                                .put(SRMetaBlockID.AUTHORIZATION_MGR, authorizationMgr::loadV2)
+                                .put(SRMetaBlockID.TASK_MGR, taskManager::loadTasksV2)
+                                .put(SRMetaBlockID.CATALOG_MGR, catalogMgr::load)
+                                .put(SRMetaBlockID.INSERT_OVERWRITE_JOB_MGR, insertOverwriteJobMgr::load)
+                                .put(SRMetaBlockID.COMPACTION_MGR, compactionMgr::load)
+                                .put(SRMetaBlockID.STREAM_LOAD_MGR, streamLoadMgr::load)
+                                .put(SRMetaBlockID.MATERIALIZED_VIEW_MGR, MaterializedViewMgr.getInstance()::load)
+                                .put(SRMetaBlockID.GLOBAL_FUNCTION_MGR, globalFunctionMgr::load)
+                                .put(SRMetaBlockID.STORAGE_VOLUME_MGR, storageVolumeMgr::load)
+                                .put(SRMetaBlockIDEPack.SECURITY_POLICY_MGR, securityPolicyManager::load)
+                                .build();
                 try {
                     loadHeaderV2(dis);
 
@@ -1892,6 +1903,7 @@ public class GlobalStateMgr {
                     MaterializedViewMgr.getInstance().save(dos);
                     globalFunctionMgr.save(dos);
                     storageVolumeMgr.save(dos);
+                    securityPolicyManager.save(dos);
                 } catch (SRMetaBlockException e) {
                     LOG.error("Save meta block failed ", e);
                     throw new IOException("Save meta block failed ", e);
@@ -2589,7 +2601,8 @@ public class GlobalStateMgr {
             }
 
             String partitionDuration =
-                    olapTable.getTableProperty().getProperties().get(PropertyAnalyzer.PROPERTIES_DATACACHE_PARTITION_DURATION);
+                    olapTable.getTableProperty().getProperties()
+                            .get(PropertyAnalyzer.PROPERTIES_DATACACHE_PARTITION_DURATION);
             if (partitionDuration != null) {
                 sb.append(StatsConstants.TABLE_PROPERTY_SEPARATOR)
                         .append(PropertyAnalyzer.PROPERTIES_DATACACHE_PARTITION_DURATION)
@@ -2667,14 +2680,16 @@ public class GlobalStateMgr {
                 Map<String, String> properties = olapTable.getTableProperty().getProperties();
 
                 if (properties.containsKey(PropertyAnalyzer.PROPERTIES_STORAGE_MEDIUM)) {
-                    sb.append(StatsConstants.TABLE_PROPERTY_SEPARATOR).append(PropertyAnalyzer.PROPERTIES_STORAGE_MEDIUM)
+                    sb.append(StatsConstants.TABLE_PROPERTY_SEPARATOR)
+                            .append(PropertyAnalyzer.PROPERTIES_STORAGE_MEDIUM)
                             .append("\" = \"");
                     sb.append(properties.get(PropertyAnalyzer.PROPERTIES_STORAGE_MEDIUM)).append("\"");
                 }
 
                 // partition live number
                 if (properties.containsKey(PropertyAnalyzer.PROPERTIES_PARTITION_LIVE_NUMBER)) {
-                    sb.append(StatsConstants.TABLE_PROPERTY_SEPARATOR).append(PropertyAnalyzer.PROPERTIES_PARTITION_LIVE_NUMBER)
+                    sb.append(StatsConstants.TABLE_PROPERTY_SEPARATOR)
+                            .append(PropertyAnalyzer.PROPERTIES_PARTITION_LIVE_NUMBER)
                             .append("\" = \"");
                     sb.append(properties.get(PropertyAnalyzer.PROPERTIES_PARTITION_LIVE_NUMBER)).append("\"");
                 }
@@ -2682,7 +2697,8 @@ public class GlobalStateMgr {
                 // unique constraint
                 if (properties.containsKey(PropertyAnalyzer.PROPERTIES_UNIQUE_CONSTRAINT)
                         && !Strings.isNullOrEmpty(properties.get(PropertyAnalyzer.PROPERTIES_UNIQUE_CONSTRAINT))) {
-                    sb.append(StatsConstants.TABLE_PROPERTY_SEPARATOR).append(PropertyAnalyzer.PROPERTIES_UNIQUE_CONSTRAINT)
+                    sb.append(StatsConstants.TABLE_PROPERTY_SEPARATOR)
+                            .append(PropertyAnalyzer.PROPERTIES_UNIQUE_CONSTRAINT)
                             .append("\" = \"");
                     sb.append(properties.get(PropertyAnalyzer.PROPERTIES_UNIQUE_CONSTRAINT)).append("\"");
                 }
@@ -2690,9 +2706,11 @@ public class GlobalStateMgr {
                 // foreign key constraint
                 if (properties.containsKey(PropertyAnalyzer.PROPERTIES_FOREIGN_KEY_CONSTRAINT)
                         && !Strings.isNullOrEmpty(properties.get(PropertyAnalyzer.PROPERTIES_FOREIGN_KEY_CONSTRAINT))) {
-                    sb.append(StatsConstants.TABLE_PROPERTY_SEPARATOR).append(PropertyAnalyzer.PROPERTIES_FOREIGN_KEY_CONSTRAINT)
+                    sb.append(StatsConstants.TABLE_PROPERTY_SEPARATOR)
+                            .append(PropertyAnalyzer.PROPERTIES_FOREIGN_KEY_CONSTRAINT)
                             .append("\" = \"");
-                    sb.append(ForeignKeyConstraint.getShowCreateTableConstraintDesc(olapTable.getForeignKeyConstraints()))
+                    sb.append(
+                                    ForeignKeyConstraint.getShowCreateTableConstraintDesc(olapTable.getForeignKeyConstraints()))
                             .append("\"");
                 }
             }
@@ -2911,10 +2929,6 @@ public class GlobalStateMgr {
                 createRollupStmt.add(sb.toString());
             }
         }
-    }
-
-    public void replayCreateTable(CreateTableInfo info) {
-        localMetastore.replayCreateTable(info);
     }
 
     // Drop table
@@ -3333,11 +3347,9 @@ public class GlobalStateMgr {
         this.alterJobMgr.replayAlterMaterializedViewProperties(opCode, log);
     }
 
-
     public void replayAlterMaterializedViewStatus(AlterMaterializedViewStatusLog log) {
         this.alterJobMgr.replayAlterMaterializedViewStatus(log);
     }
-
 
     /*
      * used for handling CancelAlterStmt (for client is the CANCEL ALTER
@@ -3436,7 +3448,8 @@ public class GlobalStateMgr {
         localMetastore.modifyBinlogMeta(db, table, binlogConfig);
     }
 
-    public void modifyTableConstraint(Database db, String tableName, Map<String, String> properties) throws DdlException {
+    public void modifyTableConstraint(Database db, String tableName, Map<String, String> properties)
+            throws DdlException {
         localMetastore.modifyTableConstraint(db, tableName, properties);
     }
 

@@ -25,6 +25,10 @@ import com.starrocks.common.ErrorCode;
 import com.starrocks.common.ErrorReport;
 import com.starrocks.common.MetaNotFoundException;
 import com.starrocks.common.UserException;
+import com.starrocks.epack.privilege.SecurityPolicyMgr;
+import com.starrocks.epack.sql.ast.AlterPolicyStmt;
+import com.starrocks.epack.sql.ast.CreatePolicyStmt;
+import com.starrocks.epack.sql.ast.DropPolicyStmt;
 import com.starrocks.load.EtlJobType;
 import com.starrocks.scheduler.Constants;
 import com.starrocks.scheduler.Task;
@@ -321,7 +325,7 @@ public class DDLStmtExecutor {
         @Override
         public ShowResultSet visitAlterTableStatement(AlterTableStmt stmt, ConnectContext context) {
             ErrorReport.wrapWithRuntimeException(() -> {
-                context.getGlobalStateMgr().alterTable(stmt);
+                context.getGlobalStateMgr().getMetadataMgr().alterTable(stmt);
             });
             return null;
         }
@@ -518,6 +522,36 @@ public class DDLStmtExecutor {
                         stmt.getName(), stmt.getPropertyMap());
             });
 
+            return null;
+        }
+
+        @Override
+        public ShowResultSet visitCreatePolicyStatement(CreatePolicyStmt stmt, ConnectContext context) {
+            ErrorReport.wrapWithRuntimeException(() -> {
+                SecurityPolicyMgr securityPolicyManagerEE =
+                        context.getGlobalStateMgr().getSecurityPolicyManager();
+                securityPolicyManagerEE.createMaskingPolicy(stmt);
+            });
+            return null;
+        }
+
+        @Override
+        public ShowResultSet visitDropPolicyStatement(DropPolicyStmt stmt, ConnectContext context) {
+            ErrorReport.wrapWithRuntimeException(() -> {
+                SecurityPolicyMgr securityPolicyManagerEE =
+                        context.getGlobalStateMgr().getSecurityPolicyManager();
+                securityPolicyManagerEE.dropPolicy(stmt);
+            });
+            return null;
+        }
+
+        @Override
+        public ShowResultSet visitAlterPolicyStatement(AlterPolicyStmt stmt, ConnectContext context) {
+            ErrorReport.wrapWithRuntimeException(() -> {
+                SecurityPolicyMgr securityPolicyManagerEE =
+                        context.getGlobalStateMgr().getSecurityPolicyManager();
+                securityPolicyManagerEE.alterPolicy(stmt);
+            });
             return null;
         }
 

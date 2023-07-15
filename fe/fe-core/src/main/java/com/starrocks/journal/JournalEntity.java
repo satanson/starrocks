@@ -52,6 +52,13 @@ import com.starrocks.common.Config;
 import com.starrocks.common.io.Text;
 import com.starrocks.common.io.Writable;
 import com.starrocks.common.util.SmallFileMgr.SmallFile;
+import com.starrocks.epack.persist.AlterPolicyLog;
+import com.starrocks.epack.persist.ApplyOrRevokeMaskingPolicyLog;
+import com.starrocks.epack.persist.ApplyOrRevokeRowAccessPolicyLog;
+import com.starrocks.epack.persist.CreatePolicyLog;
+import com.starrocks.epack.persist.CreateTableInfoEPack;
+import com.starrocks.epack.persist.DropPolicyLog;
+import com.starrocks.epack.persist.OperationTypeEPack;
 import com.starrocks.ha.LeaderInfo;
 import com.starrocks.journal.bdbje.Timestamp;
 import com.starrocks.leader.Checkpoint;
@@ -82,7 +89,6 @@ import com.starrocks.persist.ColocatePersistInfo;
 import com.starrocks.persist.ConsistencyCheckInfo;
 import com.starrocks.persist.CreateDbInfo;
 import com.starrocks.persist.CreateInsertOverwriteJobLog;
-import com.starrocks.persist.CreateTableInfo;
 import com.starrocks.persist.CreateUserInfo;
 import com.starrocks.persist.DatabaseInfo;
 import com.starrocks.persist.DropCatalogLog;
@@ -247,13 +253,13 @@ public class JournalEntity implements Writable {
             }
             case OperationType.OP_CREATE_MATERIALIZED_VIEW:
             case OperationType.OP_CREATE_TABLE: {
-                data = new CreateTableInfo();
-                ((CreateTableInfo) data).readFields(in);
+                data = new CreateTableInfoEPack();
+                ((CreateTableInfoEPack) data).readFields(in);
                 isRead = true;
                 break;
             }
             case OperationType.OP_CREATE_TABLE_V2: {
-                data = GsonUtils.GSON.fromJson(Text.readString(in), CreateTableInfo.class);
+                data = GsonUtils.GSON.fromJson(Text.readString(in), CreateTableInfoEPack.class);
                 isRead = true;
                 break;
             }
@@ -1010,6 +1016,31 @@ public class JournalEntity implements Writable {
                 isRead = true;
                 break;
             }
+            case OperationTypeEPack.OP_CREATE_MASKING_POLICY:
+            case OperationTypeEPack.OP_CREATE_ROW_ACCESS_POLICY:
+                data = CreatePolicyLog.read(in);
+                isRead = true;
+                break;
+            case OperationTypeEPack.OP_DROP_POLICY:
+                data = DropPolicyLog.read(in);
+                isRead = true;
+                break;
+            case OperationTypeEPack.OP_ALTER_POLICY_SET_BODY:
+            case OperationTypeEPack.OP_ALTER_POLICY_SET_COMMENT:
+            case OperationTypeEPack.OP_ALTER_POLICY_RENAME:
+                data = AlterPolicyLog.read(in);
+                isRead = true;
+                break;
+            case OperationTypeEPack.OP_APPLY_MASKING_POLICY:
+            case OperationTypeEPack.OP_REVOKE_MASKING_POLICY:
+                data = ApplyOrRevokeMaskingPolicyLog.read(in);
+                isRead = true;
+                break;
+            case OperationTypeEPack.OP_APPLY_ROW_ACCESS_POLICY:
+            case OperationTypeEPack.OP_REVOKE_ROW_ACCESS_POLICY:
+                data = ApplyOrRevokeRowAccessPolicyLog.read(in);
+                isRead = true;
+                break;
             case OperationType.OP_MV_JOB_STATE:
                 data = MVMaintenanceJob.read(in);
                 isRead = true;

@@ -53,6 +53,7 @@ import com.starrocks.common.ErrorReport;
 import com.starrocks.common.FeConstants;
 import com.starrocks.common.util.DateUtils;
 import com.starrocks.common.util.PropertyAnalyzer;
+import com.starrocks.epack.sql.analyzer.AlterTableClauseVisitorEPack;
 import com.starrocks.qe.ConnectContext;
 import com.starrocks.server.GlobalStateMgr;
 import com.starrocks.sql.ast.AlterMaterializedViewStmt;
@@ -227,7 +228,10 @@ public class MaterializedViewAnalyzer {
             }
 
             // analyze query statement, can check whether tables and columns exist in catalog
-            Analyzer.analyze(queryStatement, context);
+            QueryAnalyzer queryAnalyzer = new QueryAnalyzer(context);
+            queryAnalyzer.hasRewrite = true;
+            queryAnalyzer.analyze(statement.getQueryStatement());
+
             AnalyzerUtils.checkNondeterministicFunction(queryStatement);
 
             // convert queryStatement to sql and set
@@ -880,6 +884,23 @@ public class MaterializedViewAnalyzer {
                 }
             } else if (statement.getSwapTable() != null) {
                 // skip
+            } else if (statement.getOps() != null) {
+                TableName mvName = statement.getMvName();
+                Database db = context.getGlobalStateMgr().getDb(mvName.getDb());
+                if (db == null) {
+                    throw new SemanticException("Can not find database:" + mvName.getDb(), mvName.getPos());
+                }
+                OlapTable table = (OlapTable) db.getTable(mvName.getTbl());
+                if (table == null) {
+                    throw new SemanticException("Can not find materialized view:" + mvName.getTbl(), mvName.getPos());
+                }
+                if (!(table instanceof MaterializedView)) {
+                    throw new SemanticException(mvName.getTbl() + " is not async materialized view", mvName.getPos());
+                }
+
+                AlterTableClauseVisitorEPack alterTableClauseAnalyzerVisitor = new AlterTableClauseVisitorEPack();
+                alterTableClauseAnalyzerVisitor.setTable(table);
+                alterTableClauseAnalyzerVisitor.analyze(statement.getOps().get(0), context);
             } else {
                 throw new SemanticException("Unsupported modification for materialized view");
             }

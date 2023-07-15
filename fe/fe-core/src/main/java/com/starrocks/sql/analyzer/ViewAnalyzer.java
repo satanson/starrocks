@@ -19,6 +19,7 @@ import com.starrocks.catalog.Table;
 import com.starrocks.catalog.View;
 import com.starrocks.common.ErrorCode;
 import com.starrocks.common.ErrorReport;
+import com.starrocks.epack.sql.analyzer.AlterTableClauseVisitorEPack;
 import com.starrocks.qe.ConnectContext;
 import com.starrocks.sql.ast.AlterClause;
 import com.starrocks.sql.ast.AlterViewClause;
@@ -48,7 +49,9 @@ public class ViewAnalyzer {
             final String tableName = stmt.getTableName().getTbl();
             FeNameFormat.checkTableName(tableName);
 
-            Analyzer.analyze(stmt.getQueryStatement(), context);
+            QueryAnalyzer queryAnalyzer = new QueryAnalyzer(context);
+            queryAnalyzer.hasRewrite = true;
+            queryAnalyzer.analyze(stmt.getQueryStatement());
 
             List<Column> viewColumns = analyzeViewColumns(stmt.getQueryStatement().getQueryRelation(), stmt.getColWithComments());
             stmt.setColumns(viewColumns);
@@ -70,15 +73,23 @@ public class ViewAnalyzer {
             }
 
             AlterClause alterClause = stmt.getAlterClause();
-            AlterViewClause alterViewClause = (AlterViewClause) alterClause;
+            if (alterClause instanceof AlterViewClause) {
+                AlterViewClause alterViewClause = (AlterViewClause) alterClause;
 
-            Analyzer.analyze(alterViewClause.getQueryStatement(), context);
+                QueryAnalyzer queryAnalyzer = new QueryAnalyzer(context);
+                queryAnalyzer.hasRewrite = true;
+                queryAnalyzer.analyze(alterViewClause.getQueryStatement());
 
-            List<Column> viewColumns = analyzeViewColumns(alterViewClause.getQueryStatement().getQueryRelation(),
-                    alterViewClause.getColWithComments());
-            alterViewClause.setColumns(viewColumns);
-            String viewSql = AstToSQLBuilder.toSQL(alterViewClause.getQueryStatement());
-            alterViewClause.setInlineViewDef(viewSql);
+                List<Column> viewColumns = analyzeViewColumns(alterViewClause.getQueryStatement().getQueryRelation(),
+                        alterViewClause.getColWithComments());
+                alterViewClause.setColumns(viewColumns);
+                String viewSql = AstToSQLBuilder.toSQL(alterViewClause.getQueryStatement());
+                alterViewClause.setInlineViewDef(viewSql);
+            } else {
+                AlterTableClauseVisitorEPack alterTableClauseAnalyzerVisitor = new AlterTableClauseVisitorEPack();
+                alterTableClauseAnalyzerVisitor.setTable(table);
+                alterTableClauseAnalyzerVisitor.analyze(alterClause, context);
+            }
             return null;
         }
 
