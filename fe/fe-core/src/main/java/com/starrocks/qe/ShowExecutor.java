@@ -677,6 +677,7 @@ public class ShowExecutor {
     }
 
     private void handleShowProfilelist() {
+        Preconditions.checkState(false, "Not support show profilelist statement in this version");
         ShowProfilelistStmt showStmt = (ShowProfilelistStmt) stmt;
         List<List<String>> rowSet = Lists.newArrayList();
 
