@@ -83,7 +83,6 @@ import com.starrocks.common.util.DebugUtil;
 import com.starrocks.common.util.ProfileManager;
 import com.starrocks.epack.catalog.system.starrocks.PolicyReferences;
 import com.starrocks.http.BaseAction;
-import com.starrocks.http.UnauthorizedException;
 import com.starrocks.http.rest.TransactionResult;
 import com.starrocks.lake.LakeTablet;
 import com.starrocks.leader.LeaderImpl;
@@ -105,7 +104,7 @@ import com.starrocks.mysql.privilege.TablePrivEntry;
 import com.starrocks.mysql.privilege.UserPrivTable;
 import com.starrocks.persist.AutoIncrementInfo;
 import com.starrocks.planner.StreamLoadPlanner;
-import com.starrocks.privilege.PrivilegeActions;
+import com.starrocks.privilege.AccessDeniedException;
 import com.starrocks.privilege.PrivilegeBuiltinConstants;
 import com.starrocks.privilege.PrivilegeType;
 import com.starrocks.qe.ConnectContext;
@@ -123,6 +122,7 @@ import com.starrocks.scheduler.persist.TaskRunStatus;
 import com.starrocks.server.GlobalStateMgr;
 import com.starrocks.sql.analyzer.Analyzer;
 import com.starrocks.sql.analyzer.AnalyzerUtils;
+import com.starrocks.sql.analyzer.Authorizer;
 import com.starrocks.sql.analyzer.SemanticException;
 import com.starrocks.sql.ast.AddPartitionClause;
 import com.starrocks.sql.ast.QueryStatement;
@@ -304,7 +304,10 @@ public class FrontendServiceImpl implements FrontendService.Iface {
             currentUser = UserIdentity.createAnalyzedUserIdentWithIp(params.user, params.user_ip);
         }
         for (String fullName : dbNames) {
-            if (!PrivilegeActions.checkAnyActionOnOrInDb(currentUser, null, fullName)) {
+            try {
+                Authorizer.checkAnyActionOnOrInDb(currentUser, null, InternalCatalog.DEFAULT_INTERNAL_CATALOG_NAME,
+                        fullName);
+            } catch (AccessDeniedException e) {
                 continue;
             }
 
@@ -347,9 +350,13 @@ public class FrontendServiceImpl implements FrontendService.Iface {
             for (String tableName : db.getTableNamesViewWithLock()) {
                 LOG.debug("get table: {}, wait to check", tableName);
                 Table tbl = db.getTable(tableName);
-                if (tbl != null && !PrivilegeActions.checkAnyActionOnTableLikeObject(currentUser,
-                        null, params.db, tbl)) {
-                    continue;
+                if (tbl != null) {
+                    try {
+                        Authorizer.checkAnyActionOnTableLikeObject(currentUser,
+                                null, params.db, tbl);
+                    } catch (AccessDeniedException e) {
+                        continue;
+                    }
                 }
 
                 if (matcher != null && !matcher.match(tableName)) {
@@ -392,9 +399,13 @@ public class FrontendServiceImpl implements FrontendService.Iface {
                 List<Table> tables = listingViews ? db.getViews() : db.getTables();
                 OUTER:
                 for (Table table : tables) {
-                    if (!PrivilegeActions.checkAnyActionOnTableLikeObject(currentUser, null, params.db, table)) {
+                    try {
+                        Authorizer.checkAnyActionOnTableLikeObject(currentUser,
+                                null, params.db, table);
+                    } catch (AccessDeniedException e) {
                         continue;
                     }
+
                     if (matcher != null && !matcher.match(table.getName())) {
                         continue;
                     }
@@ -420,9 +431,13 @@ public class FrontendServiceImpl implements FrontendService.Iface {
                             Map<TableName, Table> allTables = AnalyzerUtils.collectAllTable(queryStatement);
                             for (TableName tableName : allTables.keySet()) {
                                 Table tbl = db.getTable(tableName.getTbl());
-                                if (tbl != null && !PrivilegeActions.checkAnyActionOnTableLikeObject(currentUser,
-                                        null, tableName.getDb(), tbl)) {
-                                    continue OUTER;
+                                if (tbl != null) {
+                                    try {
+                                        Authorizer.checkAnyActionOnTableLikeObject(currentUser,
+                                                null, tableName.getDb(), tbl);
+                                    } catch (AccessDeniedException e) {
+                                        continue OUTER;
+                                    }
                                 }
                             }
                         } catch (SemanticException e) {
@@ -520,7 +535,10 @@ public class FrontendServiceImpl implements FrontendService.Iface {
             for (Table table : db.getTables()) {
                 if (table.isMaterializedView()) {
                     MaterializedView mvTable = (MaterializedView) table;
-                    if (!PrivilegeActions.checkAnyActionOnTableLikeObject(currentUser, null, dbName, mvTable)) {
+                    try {
+                        Authorizer.checkAnyActionOnTableLikeObject(currentUser,
+                                null, dbName, mvTable);
+                    } catch (AccessDeniedException e) {
                         continue;
                     }
                     if (matcher != null && !matcher.match(mvTable.getName())) {
@@ -575,7 +593,11 @@ public class FrontendServiceImpl implements FrontendService.Iface {
                 LOG.warn("Ignore the task db because information is incorrect: " + task);
                 continue;
             }
-            if (!PrivilegeActions.checkAnyActionOnOrInDb(currentUser, null, task.getDbName())) {
+
+            try {
+                Authorizer.checkAnyActionOnOrInDb(currentUser, null, InternalCatalog.DEFAULT_INTERNAL_CATALOG_NAME,
+                        task.getDbName());
+            } catch (AccessDeniedException e) {
                 continue;
             }
 
@@ -619,7 +641,11 @@ public class FrontendServiceImpl implements FrontendService.Iface {
                 LOG.warn("Ignore the task status because db information is incorrect: " + status);
                 continue;
             }
-            if (!PrivilegeActions.checkAnyActionOnOrInDb(currentUser, null, status.getDbName())) {
+
+            try {
+                Authorizer.checkAnyActionOnOrInDb(currentUser, null, InternalCatalog.DEFAULT_INTERNAL_CATALOG_NAME,
+                        status.getDbName());
+            } catch (AccessDeniedException e) {
                 continue;
             }
 
@@ -846,7 +872,10 @@ public class FrontendServiceImpl implements FrontendService.Iface {
                 if (table == null) {
                     return result;
                 }
-                if (!PrivilegeActions.checkAnyActionOnTableLikeObject(currentUser, null, params.db, table)) {
+                try {
+                    Authorizer.checkAnyActionOnTableLikeObject(currentUser,
+                            null, params.db, table);
+                } catch (AccessDeniedException e) {
                     return result;
                 }
                 setColumnDesc(columns, table, limit, false, params.db, params.getTable_name());
@@ -864,7 +893,10 @@ public class FrontendServiceImpl implements FrontendService.Iface {
         List<String> dbNames = globalStateMgr.getDbNames();
         boolean reachLimit;
         for (String fullName : dbNames) {
-            if (!PrivilegeActions.checkAnyActionOnOrInDb(currentUser, null, fullName)) {
+            try {
+                Authorizer.checkAnyActionOnOrInDb(currentUser, null,
+                        InternalCatalog.DEFAULT_INTERNAL_CATALOG_NAME, fullName);
+            } catch (AccessDeniedException e) {
                 continue;
             }
             Database db = GlobalStateMgr.getCurrentState().getDb(fullName);
@@ -876,10 +908,14 @@ public class FrontendServiceImpl implements FrontendService.Iface {
                         if (table == null) {
                             continue;
                         }
-                        if (!PrivilegeActions.checkAnyActionOnTableLikeObject(currentUser, null,
-                                fullName, table)) {
+
+                        try {
+                            Authorizer.checkAnyActionOnTableLikeObject(currentUser,
+                                    null, fullName, table);
+                        } catch (AccessDeniedException e) {
                             continue;
                         }
+
                         reachLimit = setColumnDesc(columns, table, limit, true, fullName, tableName);
                     } finally {
                         db.readUnlock();
@@ -1039,7 +1075,9 @@ public class FrontendServiceImpl implements FrontendService.Iface {
             throw new AuthenticationException("Access denied for " + user + "@" + clientIp);
         }
         // check INSERT action on table
-        if (!PrivilegeActions.checkTableAction(currentUser, null, db, tbl, PrivilegeType.INSERT)) {
+        try {
+            Authorizer.checkTableAction(currentUser, null, db, tbl, PrivilegeType.INSERT);
+        } catch (AccessDeniedException e) {
             throw new AuthenticationException(
                     "Access denied; you need (at least one of) the INSERT privilege(s) for this operation");
         }
@@ -1601,12 +1639,7 @@ public class FrontendServiceImpl implements FrontendService.Iface {
         try {
             String dbName = authParams.getDb_name();
             for (String tableName : authParams.getTable_names()) {
-                if (!PrivilegeActions.checkTableAction(userIdentity, null, dbName,
-                        tableName, PrivilegeType.INSERT)) {
-                    throw new UnauthorizedException(String.format(
-                            "Access denied; user '%s'@'%s' need INSERT action on %s.%s for this operation",
-                            userIdentity.getQualifiedUser(), userIdentity.getHost(), dbName, tableName));
-                }
+                Authorizer.checkTableAction(userIdentity, null, dbName, tableName, PrivilegeType.INSERT);
             }
             return new TStatus(TStatusCode.OK);
         } catch (Exception e) {
@@ -1971,10 +2004,12 @@ public class FrontendServiceImpl implements FrontendService.Iface {
                 long dbId = GlobalStateMgr.getCurrentState().getDb(request.getDb()).getId();
                 if (request.isSetLabel()) {
                     loads.addAll(GlobalStateMgr.getCurrentState().getLoadMgr().getLoadJobsByDb(
-                            dbId, request.getLabel(), true).stream().map(LoadJob::toThrift).collect(Collectors.toList()));
+                            dbId, request.getLabel(), true).stream()
+                            .map(LoadJob::toThrift).collect(Collectors.toList()));
                 } else {
                     loads.addAll(GlobalStateMgr.getCurrentState().getLoadMgr().getLoadJobsByDb(
-                            dbId, null, false).stream().map(LoadJob::toThrift).collect(Collectors.toList()));
+                            dbId, null, false).stream().map(LoadJob::toThrift)
+                            .collect(Collectors.toList()));
                 }
             } else {
                 if (request.isSetLabel()) {
