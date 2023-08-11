@@ -25,6 +25,7 @@ public class PrivilegeTypeEPack extends PrivilegeType {
                     .put(APPLY.name(), APPLY)
                     .build();
 
+    @Override
     public String name() {
         if (VALID_PRIVILEGE_TYPE.contains(this)) {
             return name;

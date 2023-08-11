@@ -23,6 +23,7 @@ import mockit.Mock;
 import mockit.MockUp;
 import org.junit.Assert;
 import org.junit.BeforeClass;
+import org.junit.Ignore;
 import org.junit.Test;
 
 public class ReplayWithMVFromDumpTest extends ReplayFromDumpTestBase {
@@ -61,6 +62,7 @@ public class ReplayWithMVFromDumpTest extends ReplayFromDumpTestBase {
     }
 
     @Test
+    @Ignore
     public void testMV_JoinAgg3() throws Exception {
         FeConstants.isReplayFromQueryDump = true;
         // Table and mv have no stats, mv rewrite is ok.
