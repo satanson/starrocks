@@ -52,7 +52,6 @@ PLAN FRAGMENT 0
      tabletList=
      cardinality=1
      avgRowSize=5.0
-     numNodes=0
 -- !result
 alter table t0 modify column v1 unset masking policy;
 -- result:
@@ -77,7 +76,6 @@ PLAN FRAGMENT 0
      tabletList=
      cardinality=1
      avgRowSize=3.0
-     numNodes=0
 -- !result
 create masking policy mp2 as ( v1 bigint, v2 bigint, v3 bigint) returns bigint -> if (v1 = 1, v2, v3);
 -- result:
@@ -123,7 +121,6 @@ PLAN FRAGMENT 0
      tabletList=
      cardinality=1
      avgRowSize=4.0
-     numNodes=0
 -- !result
 alter table t1 modify column a unset masking policy;
 -- result:
@@ -145,5 +142,4 @@ PLAN FRAGMENT 0
      tabletList=
      cardinality=1
      avgRowSize=3.0
-     numNodes=0
 -- !result

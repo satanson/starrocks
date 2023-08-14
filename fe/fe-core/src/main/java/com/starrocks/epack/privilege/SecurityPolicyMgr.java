@@ -4,7 +4,6 @@ package com.starrocks.epack.privilege;
 
 import com.starrocks.analysis.Expr;
 import com.starrocks.analysis.TableName;
-import com.starrocks.analysis.TypeDef;
 import com.starrocks.common.DdlException;
 import com.starrocks.epack.persist.AlterPolicyLog;
 import com.starrocks.epack.persist.ApplyOrRevokeMaskingPolicyLog;
@@ -38,7 +37,6 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
-import java.util.stream.Collectors;
 
 public class SecurityPolicyMgr {
 
@@ -86,7 +84,7 @@ public class SecurityPolicyMgr {
                     policyName,
                     dbUID,
                     stmt.getArgNames(),
-                    stmt.getArgTypeDefs().stream().map(TypeDef::getType).collect(Collectors.toList()),
+                    stmt.getArgTypeDefs(),
                     stmt.getReturnType().getType(),
                     stmt.getExpression(),
                     stmt.getComment());
@@ -412,19 +410,23 @@ public class SecurityPolicyMgr {
 
     public void applyMaskingPolicyContext(TableName tableName, String columnName,
                                           WithColumnMaskingPolicy withColumnMaskingPolicy) {
-        TableUID tableUID;
-        tableUID = TableUID.generate(tableName.getCatalog(), tableName.getDb(), tableName.getTbl());
+        TableUID tableUID = TableUID.generate(tableName.getCatalog(), tableName.getDb(), tableName.getTbl());
 
-        Long policyId = withColumnMaskingPolicy.getPolicyId();
-        MaskingPolicyContext columnMaskingPolicyContext =
-                new MaskingPolicyContext(policyId, withColumnMaskingPolicy.getUsingColumns());
-
-        doApplyMaskingPolicyContext(tableUID, columnName, columnMaskingPolicyContext);
-        GlobalStateMgr.getCurrentState().getEditLog().logApplyMaskingPolicy(
-                new ApplyOrRevokeMaskingPolicyLog(tableUID, columnName, columnMaskingPolicyContext));
+        doApplyMaskingPolicyContext(tableUID, columnName, new MaskingPolicyContext(withColumnMaskingPolicy.getPolicyId(),
+                withColumnMaskingPolicy.getUsingColumns()));
+        GlobalStateMgr.getCurrentState().getEditLog().logApplyMaskingPolicy(new ApplyOrRevokeMaskingPolicyLog(
+                tableUID, columnName, new MaskingPolicyContext(withColumnMaskingPolicy.getPolicyId(),
+                withColumnMaskingPolicy.getUsingColumns())));
     }
 
-    public void replayApplyMaskingPolicyContext(ApplyOrRevokeMaskingPolicyLog applyMaskingPolicyInfo) {
+    public void registerMaskingPolicyContext(TableName tableName, String columnName,
+                                             WithColumnMaskingPolicy withColumnMaskingPolicy) {
+        TableUID tableUID = TableUID.generate(tableName.getCatalog(), tableName.getDb(), tableName.getTbl());
+        doApplyMaskingPolicyContext(tableUID, columnName, new MaskingPolicyContext(withColumnMaskingPolicy.getPolicyId(),
+                withColumnMaskingPolicy.getUsingColumns()));
+    }
+
+    public void registerMaskingPolicyContext(ApplyOrRevokeMaskingPolicyLog applyMaskingPolicyInfo) {
         doApplyMaskingPolicyContext(applyMaskingPolicyInfo.getTable(), applyMaskingPolicyInfo.getColumnName(),
                 applyMaskingPolicyInfo.getColumnMaskingPolicyContext());
     }
@@ -435,6 +437,11 @@ public class SecurityPolicyMgr {
         try {
             if (policyContextMap.containsKey(tableUID)) {
                 PolicyAppliedContext tableAppliedPolicyInfo = policyContextMap.get(tableUID);
+                if (tableAppliedPolicyInfo.getMaskingPolicyApply().containsKey(columnName)) {
+                    throw new SemanticException("A masking policy already exists in the current column[" + columnName
+                            + "], and only supports applying a masking policy to a specific column");
+                }
+
                 tableAppliedPolicyInfo.applyMaskingPolicy(columnName, columnMaskingPolicyContext);
             } else {
                 PolicyAppliedContext tableAppliedPolicyInfo = new PolicyAppliedContext();
@@ -474,7 +481,13 @@ public class SecurityPolicyMgr {
                 .logApplyRowAccessPolicy(new ApplyOrRevokeRowAccessPolicyLog(tableUID, rowAccessPolicyContext));
     }
 
-    public void replayApplyRowAccessPolicyContext(ApplyOrRevokeRowAccessPolicyLog applyRowAccessPolicyInfo) {
+    public void registerRowAccessPolicyContext(TableName tableName, WithRowAccessPolicy withRowAccessPolicy) {
+        TableUID tableUID = TableUID.generate(tableName.getCatalog(), tableName.getDb(), tableName.getTbl());
+        doApplyRowAccessPolicyContext(tableUID,
+                new RowAccessPolicyContext(withRowAccessPolicy.getPolicyId(), withRowAccessPolicy.getOnColumns()));
+    }
+
+    public void registerRowAccessPolicyContext(ApplyOrRevokeRowAccessPolicyLog applyRowAccessPolicyInfo) {
         doApplyRowAccessPolicyContext(applyRowAccessPolicyInfo.getTable(),
                 applyRowAccessPolicyInfo.getRowAccessPolicyContext());
     }
@@ -485,6 +498,13 @@ public class SecurityPolicyMgr {
         try {
             if (policyContextMap.containsKey(tableUID)) {
                 PolicyAppliedContext tableAppliedPolicyInfo = policyContextMap.get(tableUID);
+                for (RowAccessPolicyContext rp : tableAppliedPolicyInfo.getRowAccessPolicyApply()) {
+                    if (rp.policyId.equals(rowAccessPolicyContext.policyId)
+                            && rp.onColumns.equals(rowAccessPolicyContext.onColumns)) {
+                        throw new SemanticException("The same Policy has already been applied to this table");
+                    }
+                }
+
                 tableAppliedPolicyInfo.addRowAccessPolicy(rowAccessPolicyContext);
             } else {
                 PolicyAppliedContext tableAppliedPolicyInfo = new PolicyAppliedContext();
@@ -496,9 +516,15 @@ public class SecurityPolicyMgr {
         }
     }
 
-    public void revokeRowAccessPolicyContext(String catalog, String dbName, String tblName, Long policyId) {
-        TableUID tableUID = TableUID.generate(catalog, dbName, tblName);
+    public void revokeRowAccessPolicyContext(String catalog, String dbName, String tblName, PolicyName policyName) {
+        SecurityPolicyMgr securityPolicyManager = GlobalStateMgr.getCurrentState().getSecurityPolicyManager();
+        Policy policy = securityPolicyManager.getPolicyByName(PolicyType.ROW_ACCESS, policyName);
+        if (policy == null) {
+            throw new SemanticException("Can't find masking policy : " + policyName.getName());
+        }
+        long policyId = policy.getPolicyId();
 
+        TableUID tableUID = TableUID.generate(catalog, dbName, tblName);
         policyContextMap.computeIfPresent(tableUID, (k, v) -> {
             v.revokeRowAccessPolicy(policyId);
             return v;

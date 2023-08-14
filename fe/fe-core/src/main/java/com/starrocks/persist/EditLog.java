@@ -559,8 +559,7 @@ public class EditLog {
                 }
                 case OperationType.OP_META_VERSION_V2: {
                     MetaVersion metaVersion = (MetaVersion) journal.getData();
-                    if (!MetaVersion.isCompatible(metaVersion.getStarRocksVersion(),
-                            FeConstants.STARROCKS_META_VERSION)) {
+                    if (!MetaVersion.isCompatible(metaVersion.getStarRocksVersion(), FeConstants.STARROCKS_META_VERSION)) {
                         throw new JournalInconsistentException("Not compatible with meta version "
                                 + metaVersion.getStarRocksVersion()
                                 + ", current version is " + FeConstants.STARROCKS_META_VERSION);
@@ -1055,6 +1054,12 @@ public class EditLog {
                     globalStateMgr.replayAuthUpgrade(info);
                     break;
                 }
+                case OperationTypeEPack.OP_CREATE_MASKING_POLICY:
+                case OperationTypeEPack.OP_CREATE_ROW_ACCESS_POLICY: {
+                    CreatePolicyLog policy = (CreatePolicyLog) journal.getData();
+                    globalStateMgr.getSecurityPolicyManager().replayCreatePolicy(policy);
+                    break;
+                }
                 case OperationTypeEPack.OP_DROP_POLICY: {
                     DropPolicyLog policy = (DropPolicyLog) journal.getData();
                     globalStateMgr.getSecurityPolicyManager().replayDropPolicy(policy);
@@ -1068,35 +1073,25 @@ public class EditLog {
                     break;
                 }
                 case OperationTypeEPack.OP_APPLY_MASKING_POLICY: {
-                    ApplyOrRevokeMaskingPolicyLog applyMaskingPolicyInfo =
-                            (ApplyOrRevokeMaskingPolicyLog) journal.getData();
-                    globalStateMgr.getSecurityPolicyManager().replayApplyMaskingPolicyContext(applyMaskingPolicyInfo);
+                    ApplyOrRevokeMaskingPolicyLog applyMaskingPolicyInfo = (ApplyOrRevokeMaskingPolicyLog) journal.getData();
+                    globalStateMgr.getSecurityPolicyManager().registerMaskingPolicyContext(applyMaskingPolicyInfo);
                     break;
                 }
                 case OperationTypeEPack.OP_APPLY_ROW_ACCESS_POLICY: {
                     ApplyOrRevokeRowAccessPolicyLog applyRowAccessPolicyInfo =
                             (ApplyOrRevokeRowAccessPolicyLog) journal.getData();
-                    globalStateMgr.getSecurityPolicyManager()
-                            .replayApplyRowAccessPolicyContext(applyRowAccessPolicyInfo);
+                    globalStateMgr.getSecurityPolicyManager().registerRowAccessPolicyContext(applyRowAccessPolicyInfo);
                     break;
                 }
                 case OperationTypeEPack.OP_REVOKE_MASKING_POLICY: {
-                    ApplyOrRevokeMaskingPolicyLog applyMaskingPolicyInfo =
-                            (ApplyOrRevokeMaskingPolicyLog) journal.getData();
+                    ApplyOrRevokeMaskingPolicyLog applyMaskingPolicyInfo = (ApplyOrRevokeMaskingPolicyLog) journal.getData();
                     globalStateMgr.getSecurityPolicyManager().replayRevokeMaskingPolicyContext(applyMaskingPolicyInfo);
                     break;
                 }
                 case OperationTypeEPack.OP_REVOKE_ROW_ACCESS_POLICY: {
                     ApplyOrRevokeRowAccessPolicyLog applyRowAccessPolicyInfo =
                             (ApplyOrRevokeRowAccessPolicyLog) journal.getData();
-                    globalStateMgr.getSecurityPolicyManager()
-                            .replayRevokeRowAccessPolicyContext(applyRowAccessPolicyInfo);
-                    break;
-                }
-                case OperationTypeEPack.OP_CREATE_MASKING_POLICY:
-                case OperationTypeEPack.OP_CREATE_ROW_ACCESS_POLICY: {
-                    CreatePolicyLog policy = (CreatePolicyLog) journal.getData();
-                    globalStateMgr.getSecurityPolicyManager().replayCreatePolicy(policy);
+                    globalStateMgr.getSecurityPolicyManager().replayRevokeRowAccessPolicyContext(applyRowAccessPolicyInfo);
                     break;
                 }
                 case OperationType.OP_MV_JOB_STATE: {
@@ -2033,8 +2028,7 @@ public class EditLog {
             Map<Long, RolePrivilegeCollectionV2> rolePrivCollectionModified,
             short pluginId,
             short pluginVersion) {
-        RolePrivilegeCollectionInfo info =
-                new RolePrivilegeCollectionInfo(rolePrivCollectionModified, pluginId, pluginVersion);
+        RolePrivilegeCollectionInfo info = new RolePrivilegeCollectionInfo(rolePrivCollectionModified, pluginId, pluginVersion);
         logUpdateRolePrivilege(info);
     }
 
@@ -2046,8 +2040,7 @@ public class EditLog {
             Map<Long, RolePrivilegeCollectionV2> rolePrivCollectionModified,
             short pluginId,
             short pluginVersion) {
-        RolePrivilegeCollectionInfo info =
-                new RolePrivilegeCollectionInfo(rolePrivCollectionModified, pluginId, pluginVersion);
+        RolePrivilegeCollectionInfo info = new RolePrivilegeCollectionInfo(rolePrivCollectionModified, pluginId, pluginVersion);
         logEdit(OperationType.OP_DROP_ROLE_V2, info);
     }
 

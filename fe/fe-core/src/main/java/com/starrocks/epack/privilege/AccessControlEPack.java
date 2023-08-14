@@ -18,4 +18,8 @@ public interface AccessControlEPack extends AccessControl {
     default void checkAnyActionOnPolicy(UserIdentity currentUser, Set<Long> roleIds, PolicyType policyType, String catalogName,
                                         String db, String policy) {
     }
+
+    default void checkAnyActionOnAnyPolicy(UserIdentity currentUser, Set<Long> roleIds, PolicyType policyType, String catalogName,
+                                           String db) {
+    }
 }

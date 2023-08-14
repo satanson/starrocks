@@ -35,4 +35,10 @@ public class NativeAccessControlEPack extends NativeAccessControl implements Acc
             AccessDeniedException.reportAccessDenied("ANY", objectType, policy);
         }
     }
+
+    @Override
+    public void checkAnyActionOnAnyPolicy(UserIdentity currentUser, Set<Long> roleIds, PolicyType policyType, String catalogName,
+                                          String db) {
+        checkAnyActionOnPolicy(currentUser, roleIds, policyType, catalogName, db, "*");
+    }
 }
