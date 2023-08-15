@@ -1995,7 +1995,7 @@ public class LocalMetastore implements ConnectorMetadata {
         }
 
         try {
-            if (getDb(db.getFullName()) == null) {
+            if (getDb(db.getId()) == null) {
                 throw new DdlException("Database has been dropped when creating table");
             }
 
@@ -2020,9 +2020,12 @@ public class LocalMetastore implements ConnectorMetadata {
                     }
                 }
 
-                CreateTableInfoEPack createTableInfo =
-                        new CreateTableInfoEPack(db.getFullName(), table, storageVolumeId,
-                                columnMaskingPolicyMap, rowAccessPolicies);
+                // NOTE: The table has been added to the database, and the following procedure cannot throw exception.
+                LOG.info("Successfully create table: {}-{}, in database: {}-{}",
+                        table.getName(), table.getId(), db.getFullName(), db.getId());
+
+                CreateTableInfoEPack createTableInfo = new CreateTableInfoEPack(db.getFullName(), table, storageVolumeId,
+                        columnMaskingPolicyMap, rowAccessPolicies);
                 GlobalStateMgr.getCurrentState().getEditLog().logCreateTable(createTableInfo);
                 table.onCreate(db);
 
