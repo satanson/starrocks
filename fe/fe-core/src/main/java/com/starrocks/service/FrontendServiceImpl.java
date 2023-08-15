@@ -210,6 +210,8 @@ import com.starrocks.thrift.TNetworkAddress;
 import com.starrocks.thrift.TNodesInfo;
 import com.starrocks.thrift.TOlapTableIndexTablets;
 import com.starrocks.thrift.TOlapTablePartition;
+import com.starrocks.thrift.TRefreshRoleMappingRequest;
+import com.starrocks.thrift.TRefreshRoleMappingResponse;
 import com.starrocks.thrift.TRefreshTableRequest;
 import com.starrocks.thrift.TRefreshTableResponse;
 import com.starrocks.thrift.TReportExecStatusParams;
@@ -305,7 +307,9 @@ public class FrontendServiceImpl implements FrontendService.Iface {
         }
         for (String fullName : dbNames) {
             try {
-                Authorizer.checkAnyActionOnOrInDb(currentUser, null, InternalCatalog.DEFAULT_INTERNAL_CATALOG_NAME,
+                Authorizer.checkAnyActionOnOrInDb(currentUser,
+                        currentUser.isEphemeral() ? currentUser.getMappedRoleIds() : null,
+                        InternalCatalog.DEFAULT_INTERNAL_CATALOG_NAME,
                         fullName);
             } catch (AccessDeniedException e) {
                 continue;
@@ -353,12 +357,11 @@ public class FrontendServiceImpl implements FrontendService.Iface {
                 if (tbl != null) {
                     try {
                         Authorizer.checkAnyActionOnTableLikeObject(currentUser,
-                                null, params.db, tbl);
+                                currentUser.isEphemeral() ? currentUser.getMappedRoleIds() : null, params.db, tbl);
                     } catch (AccessDeniedException e) {
                         continue;
                     }
                 }
-
                 if (matcher != null && !matcher.match(tableName)) {
                     continue;
                 }
@@ -401,7 +404,7 @@ public class FrontendServiceImpl implements FrontendService.Iface {
                 for (Table table : tables) {
                     try {
                         Authorizer.checkAnyActionOnTableLikeObject(currentUser,
-                                null, params.db, table);
+                                currentUser.isEphemeral() ? currentUser.getMappedRoleIds() : null, params.db, table);
                     } catch (AccessDeniedException e) {
                         continue;
                     }
@@ -434,7 +437,8 @@ public class FrontendServiceImpl implements FrontendService.Iface {
                                 if (tbl != null) {
                                     try {
                                         Authorizer.checkAnyActionOnTableLikeObject(currentUser,
-                                                null, tableName.getDb(), tbl);
+                                                currentUser.isEphemeral() ? currentUser.getMappedRoleIds() : null,
+                                                tableName.getDb(), tbl);
                                     } catch (AccessDeniedException e) {
                                         continue OUTER;
                                     }
@@ -537,7 +541,7 @@ public class FrontendServiceImpl implements FrontendService.Iface {
                     MaterializedView mvTable = (MaterializedView) table;
                     try {
                         Authorizer.checkAnyActionOnTableLikeObject(currentUser,
-                                null, dbName, mvTable);
+                                currentUser.isEphemeral() ? currentUser.getMappedRoleIds() : null, dbName, mvTable);
                     } catch (AccessDeniedException e) {
                         continue;
                     }
@@ -594,8 +598,11 @@ public class FrontendServiceImpl implements FrontendService.Iface {
                 continue;
             }
 
+            assert currentUser != null;
             try {
-                Authorizer.checkAnyActionOnOrInDb(currentUser, null, InternalCatalog.DEFAULT_INTERNAL_CATALOG_NAME,
+                Authorizer.checkAnyActionOnOrInDb(currentUser,
+                        currentUser.isEphemeral() ? currentUser.getMappedRoleIds() : null,
+                        InternalCatalog.DEFAULT_INTERNAL_CATALOG_NAME,
                         task.getDbName());
             } catch (AccessDeniedException e) {
                 continue;
@@ -642,8 +649,11 @@ public class FrontendServiceImpl implements FrontendService.Iface {
                 continue;
             }
 
+            assert currentUser != null;
             try {
-                Authorizer.checkAnyActionOnOrInDb(currentUser, null, InternalCatalog.DEFAULT_INTERNAL_CATALOG_NAME,
+                Authorizer.checkAnyActionOnOrInDb(currentUser,
+                        currentUser.isEphemeral() ? currentUser.getMappedRoleIds() : null,
+                        InternalCatalog.DEFAULT_INTERNAL_CATALOG_NAME,
                         status.getDbName());
             } catch (AccessDeniedException e) {
                 continue;
@@ -874,7 +884,7 @@ public class FrontendServiceImpl implements FrontendService.Iface {
                 }
                 try {
                     Authorizer.checkAnyActionOnTableLikeObject(currentUser,
-                            null, params.db, table);
+                            currentUser.isEphemeral() ? currentUser.getMappedRoleIds() : null, params.db, table);
                 } catch (AccessDeniedException e) {
                     return result;
                 }
@@ -894,7 +904,8 @@ public class FrontendServiceImpl implements FrontendService.Iface {
         boolean reachLimit;
         for (String fullName : dbNames) {
             try {
-                Authorizer.checkAnyActionOnOrInDb(currentUser, null,
+                Authorizer.checkAnyActionOnOrInDb(currentUser,
+                        currentUser.isEphemeral() ? currentUser.getMappedRoleIds() : null,
                         InternalCatalog.DEFAULT_INTERNAL_CATALOG_NAME, fullName);
             } catch (AccessDeniedException e) {
                 continue;
@@ -911,7 +922,7 @@ public class FrontendServiceImpl implements FrontendService.Iface {
 
                         try {
                             Authorizer.checkAnyActionOnTableLikeObject(currentUser,
-                                    null, fullName, table);
+                                    currentUser.isEphemeral() ? currentUser.getMappedRoleIds() : null, fullName, table);
                         } catch (AccessDeniedException e) {
                             continue;
                         }
@@ -1077,7 +1088,8 @@ public class FrontendServiceImpl implements FrontendService.Iface {
         }
         // check INSERT action on table
         try {
-            Authorizer.checkTableAction(currentUser, null, db, tbl, PrivilegeType.INSERT);
+            Authorizer.checkTableAction(currentUser,
+                    currentUser.isEphemeral() ? currentUser.getMappedRoleIds() : null, db, tbl, PrivilegeType.INSERT);
         } catch (AccessDeniedException e) {
             throw new AuthenticationException(
                     "Access denied; you need (at least one of) the INSERT privilege(s) for this operation");
@@ -1640,7 +1652,9 @@ public class FrontendServiceImpl implements FrontendService.Iface {
         try {
             String dbName = authParams.getDb_name();
             for (String tableName : authParams.getTable_names()) {
-                Authorizer.checkTableAction(userIdentity, null, dbName, tableName, PrivilegeType.INSERT);
+                Authorizer.checkTableAction(userIdentity,
+                        userIdentity.isEphemeral() ? userIdentity.getMappedRoleIds() : null,
+                        dbName, tableName, PrivilegeType.INSERT);
             }
             return new TStatus(TStatusCode.OK);
         } catch (Exception e) {
@@ -1691,7 +1705,15 @@ public class FrontendServiceImpl implements FrontendService.Iface {
         }
     }
 
-    public TAllocateAutoIncrementIdResult allocAutoIncrementId(TAllocateAutoIncrementIdParam request) throws TException {
+    @Override
+    public TRefreshRoleMappingResponse refreshRoleMapping(TRefreshRoleMappingRequest request) throws TException {
+        GlobalStateMgr.getCurrentState().getLdapGroupCacheMgr().refreshGroupCache(true);
+        TStatus status = new TStatus(OK);
+        return new TRefreshRoleMappingResponse(status);
+    }
+
+    public TAllocateAutoIncrementIdResult allocAutoIncrementId(TAllocateAutoIncrementIdParam request)
+            throws TException {
         TAllocateAutoIncrementIdResult result = new TAllocateAutoIncrementIdResult();
         long rows = Math.max(request.rows, Config.auto_increment_cache_size);
         Long nextId = null;
@@ -1766,12 +1788,14 @@ public class FrontendServiceImpl implements FrontendService.Iface {
         }
         Table table = db.getTable(tableId);
         if (table == null) {
-            errorStatus.setError_msgs(Lists.newArrayList(String.format("dbId=%d tableId=%d is not exists", dbId, tableId)));
+            errorStatus.setError_msgs(
+                    Lists.newArrayList(String.format("dbId=%d tableId=%d is not exists", dbId, tableId)));
             result.setStatus(errorStatus);
             return result;
         }
         if (!(table instanceof OlapTable)) {
-            errorStatus.setError_msgs(Lists.newArrayList(String.format("dbId=%d tableId=%d is not olap table", dbId, tableId)));
+            errorStatus.setError_msgs(
+                    Lists.newArrayList(String.format("dbId=%d tableId=%d is not olap table", dbId, tableId)));
             result.setStatus(errorStatus);
             return result;
         }
@@ -2031,7 +2055,8 @@ public class FrontendServiceImpl implements FrontendService.Iface {
 
     @Override
     public TGetTabletScheduleResponse getTabletSchedule(TGetTabletScheduleRequest request) throws TException {
-        TGetTabletScheduleResponse response = GlobalStateMgr.getCurrentState().getTabletScheduler().getTabletSchedule(request);
+        TGetTabletScheduleResponse response =
+                GlobalStateMgr.getCurrentState().getTabletScheduler().getTabletSchedule(request);
         LOG.info("getTabletSchedule: {} return {} TabletSchedule", request, response.getTablet_schedulesSize());
         return response;
     }

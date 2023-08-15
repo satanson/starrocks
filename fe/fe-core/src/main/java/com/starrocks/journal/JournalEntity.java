@@ -59,6 +59,8 @@ import com.starrocks.epack.persist.CreatePolicyLog;
 import com.starrocks.epack.persist.CreateTableInfoEPack;
 import com.starrocks.epack.persist.DropPolicyLog;
 import com.starrocks.epack.persist.OperationTypeEPack;
+import com.starrocks.epack.persist.RoleMappingPersistInfo;
+import com.starrocks.epack.persist.SecurityIntegrationPersistInfo;
 import com.starrocks.ha.LeaderInfo;
 import com.starrocks.journal.bdbje.Timestamp;
 import com.starrocks.leader.Checkpoint;
@@ -118,7 +120,6 @@ import com.starrocks.persist.ReplicaPersistInfo;
 import com.starrocks.persist.ResourceGroupOpEntry;
 import com.starrocks.persist.RolePrivilegeCollectionInfo;
 import com.starrocks.persist.RoutineLoadOperation;
-import com.starrocks.persist.SecurityIntegrationInfo;
 import com.starrocks.persist.SetDefaultStorageVolumeLog;
 import com.starrocks.persist.SetReplicaStatusOperationLog;
 import com.starrocks.persist.ShardInfo;
@@ -995,8 +996,33 @@ public class JournalEntity implements Writable {
                 isRead = true;
                 break;
             }
-            case OperationType.OP_CREATE_SECURITY_INTEGRATION: {
-                data = SecurityIntegrationInfo.read(in);
+            case OperationTypeEPack.OP_CREATE_SECURITY_INTEGRATION: {
+                data = SecurityIntegrationPersistInfo.read(in);
+                isRead = true;
+                break;
+            }
+            case OperationTypeEPack.OP_ALTER_SECURITY_INTEGRATION: {
+                data = SecurityIntegrationPersistInfo.read(in);
+                isRead = true;
+                break;
+            }
+            case OperationTypeEPack.OP_DROP_SECURITY_INTEGRATION: {
+                data = SecurityIntegrationPersistInfo.read(in);
+                isRead = true;
+                break;
+            }
+            case OperationTypeEPack.OP_CREATE_ROLE_MAPPING: {
+                data = RoleMappingPersistInfo.read(in);
+                isRead = true;
+                break;
+            }
+            case OperationTypeEPack.OP_ALTER_ROLE_MAPPING: {
+                data = RoleMappingPersistInfo.read(in);
+                isRead = true;
+                break;
+            }
+            case OperationTypeEPack.OP_DROP_ROLE_MAPPING: {
+                data = RoleMappingPersistInfo.read(in);
                 isRead = true;
                 break;
             }

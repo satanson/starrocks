@@ -15,4 +15,12 @@ public class OperationTypeEPack extends OperationType {
     public static final short OP_APPLY_ROW_ACCESS_POLICY = 20008;
     public static final short OP_REVOKE_MASKING_POLICY = 20009;
     public static final short OP_REVOKE_ROW_ACCESS_POLICY = 20010;
+
+    // security integration and role mapping
+    public static final short OP_CREATE_SECURITY_INTEGRATION = 20269;
+    public static final short OP_CREATE_ROLE_MAPPING = 20270;
+    public static final short OP_DROP_SECURITY_INTEGRATION = 20271;
+    public static final short OP_ALTER_SECURITY_INTEGRATION = 20272;
+    public static final short OP_DROP_ROLE_MAPPING = 20273;
+    public static final short OP_ALTER_ROLE_MAPPING = 20274;
 }
