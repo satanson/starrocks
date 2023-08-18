@@ -1317,6 +1317,12 @@ public class NodeMgr {
         frontends = nodeMgr.frontends;
         removedFrontends = nodeMgr.removedFrontends;
 
+        for (Frontend fe : frontends.values()) {
+            if (fe.getRole() == FrontendNodeType.FOLLOWER) {
+                helperNodes.add(Pair.create(fe.getHost(), fe.getEditLogPort()));
+            }
+        }
+
         systemInfo = nodeMgr.systemInfo;
         systemInfoMap.put(clusterId, systemInfo);
         brokerMgr = nodeMgr.brokerMgr;
