@@ -142,7 +142,7 @@ import com.starrocks.connector.exception.StarRocksConnectorException;
 import com.starrocks.connector.hive.ConnectorTableMetadataProcessor;
 import com.starrocks.connector.hive.events.MetastoreEventsProcessor;
 import com.starrocks.consistency.ConsistencyChecker;
-import com.starrocks.credential.CloudCredentialUtil;
+import com.starrocks.credential.CredentialUtil;
 import com.starrocks.epack.persist.SRMetaBlockIDEPack;
 import com.starrocks.epack.privilege.AuthenticationMgrEPack;
 import com.starrocks.epack.privilege.AuthorizationMgrEpack;
@@ -2894,7 +2894,7 @@ public class GlobalStateMgr {
         } else if (table.getType() == TableType.FILE) {
             FileTable fileTable = (FileTable) table;
             Map<String, String> clonedFileProperties = new HashMap<>(fileTable.getFileProperties());
-            CloudCredentialUtil.maskCloudCredential(clonedFileProperties);
+            CredentialUtil.maskCredential(clonedFileProperties);
             if (!Strings.isNullOrEmpty(table.getComment())) {
                 sb.append("\nCOMMENT \"").append(table.getComment()).append("\"");
             }
