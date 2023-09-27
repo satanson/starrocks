@@ -148,7 +148,6 @@ import com.starrocks.epack.persist.SRMetaBlockIDEPack;
 import com.starrocks.epack.privilege.AuthenticationMgrEPack;
 import com.starrocks.epack.privilege.AuthorizationMgrEpack;
 import com.starrocks.epack.privilege.SecurityPolicyMgr;
-import com.starrocks.external.starrocks.StarRocksRepository;
 import com.starrocks.ha.FrontendNodeType;
 import com.starrocks.ha.HAProtocol;
 import com.starrocks.ha.LeaderInfo;
@@ -394,7 +393,6 @@ public class GlobalStateMgr {
     private Daemon replayer;
     private Daemon timePrinter;
     private EsRepository esRepository;  // it is a daemon, so add it here
-    private StarRocksRepository starRocksRepository;
     private MetastoreEventsProcessor metastoreEventsProcessor;
     private ConnectorTableMetadataProcessor connectorTableMetadataProcessor;
 
@@ -702,7 +700,6 @@ public class GlobalStateMgr {
         this.resourceGroupMgr = new ResourceGroupMgr();
 
         this.esRepository = new EsRepository();
-        this.starRocksRepository = new StarRocksRepository();
         this.metastoreEventsProcessor = new MetastoreEventsProcessor();
         this.connectorTableMetadataProcessor = new ConnectorTableMetadataProcessor();
 
@@ -1404,7 +1401,6 @@ public class GlobalStateMgr {
         labelCleaner.start();
         // ES state store
         esRepository.start();
-        starRocksRepository.start();
 
         if (Config.enable_hms_events_incremental_sync) {
             metastoreEventsProcessor.start();
@@ -1578,7 +1574,6 @@ public class GlobalStateMgr {
                 localMetastore.recreateTabletInvertIndex();
                 // rebuild es state state
                 esRepository.loadTableFromCatalog();
-                starRocksRepository.loadTableFromCatalog();
 
                 checksum = load.loadLoadJob(dis, checksum);
                 checksum = loadAlterJob(dis, checksum);
@@ -3246,10 +3241,6 @@ public class GlobalStateMgr {
 
     public EsRepository getEsRepository() {
         return this.esRepository;
-    }
-
-    public StarRocksRepository getStarRocksRepository() {
-        return this.starRocksRepository;
     }
 
     public MetastoreEventsProcessor getMetastoreEventsProcessor() {
