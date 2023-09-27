@@ -12,11 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-
 package com.starrocks.connector.hive;
 
 import com.starrocks.connector.CachingRemoteFileConf;
 import com.starrocks.connector.CachingRemoteFileIO;
+import com.starrocks.connector.HdfsEnvironment;
 import com.starrocks.connector.RemoteFileIO;
 import com.starrocks.connector.RemoteFileOperations;
 
@@ -34,6 +34,7 @@ public class HiveMetadataFactory {
     private final ExecutorService pullRemoteFileExecutor;
     private final boolean isRecursive;
     private final boolean enableHmsEventsIncrementalSync;
+    private final HdfsEnvironment hdfsEnvironment;
 
     public HiveMetadataFactory(String catalogName,
                                IHiveMetastore metastore,
@@ -42,7 +43,8 @@ public class HiveMetadataFactory {
                                CachingRemoteFileConf fileConf,
                                ExecutorService pullRemoteFileExecutor,
                                boolean isRecursive,
-                               boolean enableHmsEventsIncrementalSync) {
+                               boolean enableHmsEventsIncrementalSync,
+                               HdfsEnvironment hdfsEnvironment) {
         this.catalogName = catalogName;
         this.metastore = metastore;
         this.remoteFileIO = remoteFileIO;
@@ -51,6 +53,7 @@ public class HiveMetadataFactory {
         this.pullRemoteFileExecutor = pullRemoteFileExecutor;
         this.isRecursive = isRecursive;
         this.enableHmsEventsIncrementalSync = enableHmsEventsIncrementalSync;
+        this.hdfsEnvironment = hdfsEnvironment;
     }
 
     public HiveMetadata create() {
@@ -64,7 +67,7 @@ public class HiveMetadataFactory {
         HiveStatisticsProvider statisticsProvider = new HiveStatisticsProvider(hiveMetastoreOperations, remoteFileOperations);
 
         Optional<CacheUpdateProcessor> cacheUpdateProcessor = getCacheUpdateProcessor();
-        return new HiveMetadata(catalogName, hiveMetastoreOperations,
+        return new HiveMetadata(catalogName, hdfsEnvironment, hiveMetastoreOperations,
                 remoteFileOperations, statisticsProvider, cacheUpdateProcessor);
     }
 

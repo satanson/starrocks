@@ -17,12 +17,14 @@ package com.starrocks.planner;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.MoreObjects;
+import com.google.common.base.Preconditions;
 import com.google.common.collect.Maps;
 import com.starrocks.analysis.Expr;
 import com.starrocks.analysis.SlotDescriptor;
 import com.starrocks.analysis.TupleDescriptor;
 import com.starrocks.catalog.PaimonTable;
 import com.starrocks.catalog.Type;
+import com.starrocks.connector.Connector;
 import com.starrocks.connector.RemoteFileDesc;
 import com.starrocks.connector.RemoteFileInfo;
 import com.starrocks.connector.paimon.PaimonConnector;
@@ -86,11 +88,12 @@ public class PaimonScanNode extends ScanNode {
         if (catalog == null) {
             return;
         }
-        PaimonConnector connector = (PaimonConnector) GlobalStateMgr.getCurrentState().getConnectorMgr().
-                getConnector(catalog);
-        if (connector != null) {
-            cloudConfiguration = connector.getCloudConfiguration();
-        }
+        Connector connector = GlobalStateMgr.getCurrentState().getConnectorMgr().getConnector(catalog);
+        Preconditions.checkState(connector != null,
+                String.format("connector of catalog %s should not be null", catalog));
+        cloudConfiguration = connector.getMetadata().getCloudConfiguration();
+        Preconditions.checkState(cloudConfiguration != null,
+                String.format("cloudConfiguration of catalog %s should not be null", catalog));
     }
 
     @Override
@@ -107,7 +110,8 @@ public class PaimonScanNode extends ScanNode {
     }
 
     public void setupScanRangeLocations(TupleDescriptor tupleDescriptor, ScalarOperator predicate) {
-        List<String> fieldNames = tupleDescriptor.getSlots().stream().map(s -> s.getColumn().getName()).collect(Collectors.toList());
+        List<String> fieldNames =
+                tupleDescriptor.getSlots().stream().map(s -> s.getColumn().getName()).collect(Collectors.toList());
         List<RemoteFileInfo> fileInfos = GlobalStateMgr.getCurrentState().getMetadataMgr().getRemoteFileInfos(
                 paimonTable.getCatalogName(), paimonTable, null, -1, predicate, fieldNames);
         RemoteFileDesc remoteFileDesc = fileInfos.get(0).getFiles().get(0);

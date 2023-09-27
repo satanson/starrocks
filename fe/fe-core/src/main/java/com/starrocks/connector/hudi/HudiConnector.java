@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-
 package com.starrocks.connector.hudi;
 
 import com.google.common.base.Preconditions;
@@ -32,28 +31,27 @@ import com.starrocks.sql.analyzer.SemanticException;
 import java.util.List;
 import java.util.Map;
 
+import static com.starrocks.connector.hive.HiveConnector.HIVE_METASTORE_TYPE;
+
 public class HudiConnector implements Connector {
     public static final String HIVE_METASTORE_URIS = "hive.metastore.uris";
-    public static final String HIVE_METASTORE_TYPE = "hive.metastore.type";
     public static final List<String> SUPPORTED_METASTORE_TYPE = Lists.newArrayList("hive", "glue", "dlf");
-    private final Map<String, String> properties;
-    private final CloudConfiguration cloudConfiguration;
     private final String catalogName;
     private final HudiConnectorInternalMgr internalMgr;
     private final HudiMetadataFactory metadataFactory;
 
     public HudiConnector(ConnectorContext context) {
-        this.properties = context.getProperties();
-        this.cloudConfiguration = CloudConfigurationFactory.buildCloudConfigurationForStorage(properties);
+        Map<String, String> properties = context.getProperties();
+        CloudConfiguration cloudConfiguration = CloudConfigurationFactory.buildCloudConfigurationForStorage(properties);
         HdfsEnvironment hdfsEnvironment = new HdfsEnvironment(cloudConfiguration);
         this.catalogName = context.getCatalogName();
         this.internalMgr = new HudiConnectorInternalMgr(catalogName, properties, hdfsEnvironment);
-        this.metadataFactory = createMetadataFactory();
-        validate();
+        this.metadataFactory = createMetadataFactory(hdfsEnvironment);
+        validate(properties);
         onCreate();
     }
 
-    public void validate() {
+    private void validate(Map<String, String> properties) {
         String hiveMetastoreType = properties.getOrDefault(HIVE_METASTORE_TYPE, "hive").toLowerCase();
         if (!SUPPORTED_METASTORE_TYPE.contains(hiveMetastoreType)) {
             throw new SemanticException("hive metastore type [%s] is not supported", hiveMetastoreType);
@@ -71,7 +69,7 @@ public class HudiConnector implements Connector {
         return metadataFactory.create();
     }
 
-    private HudiMetadataFactory createMetadataFactory() {
+    private HudiMetadataFactory createMetadataFactory(HdfsEnvironment hdfsEnvironment) {
         IHiveMetastore metastore = internalMgr.createHiveMetastore();
         RemoteFileIO remoteFileIO = internalMgr.createRemoteFileIO();
         return new HudiMetadataFactory(
@@ -81,15 +79,11 @@ public class HudiConnector implements Connector {
                 internalMgr.getHiveMetastoreConf(),
                 internalMgr.getRemoteFileConf(),
                 internalMgr.getPullRemoteFileExecutor(),
-                internalMgr.isSearchRecursive()
-        );
+                internalMgr.isSearchRecursive(),
+                hdfsEnvironment);
     }
 
     public void onCreate() {
-    }
-
-    public CloudConfiguration getCloudConfiguration() {
-        return cloudConfiguration;
     }
 
     @Override

@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-
 package com.starrocks.connector.hive;
 
 import com.google.common.base.Strings;
@@ -165,7 +164,7 @@ public class HiveMetastoreApiConverter {
         Configuration configuration = new Configuration();
         if (catalogName != null) {
             Connector connector = GlobalStateMgr.getCurrentState().getConnectorMgr().getConnector(catalogName);
-            CloudConfiguration cloudConfiguration = connector.getCloudConfiguration();
+            CloudConfiguration cloudConfiguration = connector.getMetadata().getCloudConfiguration();
             HdfsEnvironment hdfsEnvironment = new HdfsEnvironment(cloudConfiguration);
             configuration = hdfsEnvironment.getConfiguration();
         }
@@ -359,7 +358,6 @@ public class HiveMetastoreApiConverter {
         final String DEFAULT_COLLECTION_DELIM = "\002";
         final String DEFAULT_MAPKEY_DELIM = "\003";
         final String DEFAULT_LINE_DELIM = "\n";
-
 
         // Get properties 'field.delim', 'line.delim', 'collection.delim' and 'mapkey.delim' from StorageDescriptor
         // Detail refer to:

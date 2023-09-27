@@ -16,6 +16,7 @@ package com.starrocks.planner;
 
 import com.starrocks.analysis.TupleDescriptor;
 import com.starrocks.analysis.TupleId;
+import com.starrocks.catalog.HudiTable;
 import com.starrocks.catalog.PaimonTable;
 import com.starrocks.connector.Connector;
 import com.starrocks.credential.CloudConfiguration;
@@ -23,53 +24,15 @@ import com.starrocks.credential.CloudConfigurationFactory;
 import com.starrocks.server.GlobalStateMgr;
 import mockit.Expectations;
 import mockit.Mocked;
-import org.apache.paimon.data.BinaryRow;
-import org.apache.paimon.data.BinaryRowWriter;
-import org.apache.paimon.io.DataFileMeta;
-import org.apache.paimon.table.source.DataSplit;
-import org.junit.Assert;
 import org.junit.Test;
 
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 
-import static org.apache.paimon.io.DataFileMeta.DUMMY_LEVEL;
-import static org.apache.paimon.io.DataFileMeta.EMPTY_KEY_STATS;
-import static org.apache.paimon.io.DataFileMeta.EMPTY_MAX_KEY;
-import static org.apache.paimon.io.DataFileMeta.EMPTY_MIN_KEY;
-
-public class PaimonScanNodeTest {
-
-    @Test
-    public void testTotalFileLength(@Mocked PaimonTable table) {
-        BinaryRow row1 = new BinaryRow(2);
-        BinaryRowWriter writer = new BinaryRowWriter(row1, 10);
-        writer.writeInt(0, 2000);
-        writer.writeInt(1, 4444);
-        writer.complete();
-
-        List<DataFileMeta> meta1 = new ArrayList<>();
-        meta1.add(new DataFileMeta("file1", 100, 200, EMPTY_MIN_KEY, EMPTY_MAX_KEY, EMPTY_KEY_STATS, null,
-                1, 1, 1, DUMMY_LEVEL));
-        meta1.add(new DataFileMeta("file2", 100, 300, EMPTY_MIN_KEY, EMPTY_MAX_KEY, EMPTY_KEY_STATS, null,
-                1, 1, 1, DUMMY_LEVEL));
-
-        DataSplit split = DataSplit.builder().withSnapshot(1L).withPartition(row1).withBucket(1).withDataFiles(meta1)
-                .isStreaming(false).build();
-
-        TupleDescriptor desc = new TupleDescriptor(new TupleId(0));
-        desc.setTable(table);
-        PaimonScanNode scanNode = new PaimonScanNode(new PlanNodeId(0), desc, "XXX");
-        long totalFileLength = scanNode.getTotalFileLength(split);
-
-        Assert.assertEquals(200, totalFileLength);
-    }
-
+public class HudiScanNodeTest {
     @Test
     public void testInit(@Mocked GlobalStateMgr globalStateMgr,
                          @Mocked Connector connector,
-                         @Mocked PaimonTable table) {
+                         @Mocked HudiTable table) {
         String catalog = "XXX";
         CloudConfiguration cc = CloudConfigurationFactory.buildCloudConfigurationForStorage(new HashMap<>());
         new Expectations() {
@@ -84,6 +47,6 @@ public class PaimonScanNodeTest {
         };
         TupleDescriptor desc = new TupleDescriptor(new TupleId(0));
         desc.setTable(table);
-        PaimonScanNode scanNode = new PaimonScanNode(new PlanNodeId(0), desc, "XXX");
+        HudiScanNode scanNode = new HudiScanNode(new PlanNodeId(0), desc, "XXX");
     }
 }

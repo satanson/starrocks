@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-
 package com.starrocks.connector.hive;
 
 import com.google.common.collect.Lists;
@@ -25,6 +24,7 @@ import com.starrocks.catalog.Type;
 import com.starrocks.common.AnalysisException;
 import com.starrocks.common.FeConstants;
 import com.starrocks.connector.CachingRemoteFileIO;
+import com.starrocks.connector.HdfsEnvironment;
 import com.starrocks.connector.PartitionUtil;
 import com.starrocks.connector.RemoteFileBlockDesc;
 import com.starrocks.connector.RemoteFileDesc;
@@ -100,7 +100,8 @@ public class HiveMetadataTest {
         connectContext = UtFrameUtils.createDefaultCtx();
         columnRefFactory = new ColumnRefFactory();
         optimizerContext = new OptimizerContext(new Memo(), columnRefFactory, connectContext);
-        hiveMetadata = new HiveMetadata("hive_catalog", hmsOps, fileOps, statisticsProvider, Optional.empty());
+        hiveMetadata =
+                new HiveMetadata("hive_catalog", new HdfsEnvironment(), hmsOps, fileOps, statisticsProvider, Optional.empty());
     }
 
     @After
@@ -238,7 +239,7 @@ public class HiveMetadataTest {
 
         Statistics statistics = hiveMetadata.getTableStatistics(optimizerContext, hiveTable, columns,
                 Lists.newArrayList(hivePartitionKey1, hivePartitionKey2), null);
-        Assert.assertEquals(1,  statistics.getOutputRowCount(), 0.001);
+        Assert.assertEquals(1, statistics.getOutputRowCount(), 0.001);
         Assert.assertEquals(2, statistics.getColumnStatistics().size());
 
         cachingHiveMetastore.getPartitionStatistics(hiveTable, Lists.newArrayList("col1=1", "col1=2"));

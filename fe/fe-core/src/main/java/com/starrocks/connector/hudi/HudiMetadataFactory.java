@@ -12,11 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-
 package com.starrocks.connector.hudi;
 
 import com.starrocks.connector.CachingRemoteFileConf;
 import com.starrocks.connector.CachingRemoteFileIO;
+import com.starrocks.connector.HdfsEnvironment;
 import com.starrocks.connector.RemoteFileIO;
 import com.starrocks.connector.RemoteFileOperations;
 import com.starrocks.connector.hive.CacheUpdateProcessor;
@@ -39,6 +39,7 @@ public class HudiMetadataFactory {
     private final long perQueryCacheRemotePathMaxNum;
     private final ExecutorService pullRemoteFileExecutor;
     private final boolean isRecursive;
+    private final HdfsEnvironment hdfsEnvironment;
 
     public HudiMetadataFactory(String catalogName,
                                IHiveMetastore metastore,
@@ -46,7 +47,9 @@ public class HudiMetadataFactory {
                                CachingHiveMetastoreConf hmsConf,
                                CachingRemoteFileConf fileConf,
                                ExecutorService pullRemoteFileExecutor,
-                               boolean isRecursive) {
+                               boolean isRecursive,
+                               HdfsEnvironment hdfsEnvironment) {
+
         this.catalogName = catalogName;
         this.metastore = metastore;
         this.remoteFileIO = remoteFileIO;
@@ -54,6 +57,7 @@ public class HudiMetadataFactory {
         this.perQueryCacheRemotePathMaxNum = fileConf.getPerQueryCacheMaxSize();
         this.pullRemoteFileExecutor = pullRemoteFileExecutor;
         this.isRecursive = isRecursive;
+        this.hdfsEnvironment = hdfsEnvironment;
     }
 
     public HudiMetadata create() {
@@ -67,7 +71,7 @@ public class HudiMetadataFactory {
         HiveStatisticsProvider statisticsProvider = new HiveStatisticsProvider(hiveMetastoreOperations, remoteFileOperations);
         Optional<CacheUpdateProcessor> cacheUpdateProcessor = getCacheUpdateProcessor();
 
-        return new HudiMetadata(catalogName, hiveMetastoreOperations,
+        return new HudiMetadata(catalogName, hdfsEnvironment, hiveMetastoreOperations,
                 remoteFileOperations, statisticsProvider, cacheUpdateProcessor);
     }
 
