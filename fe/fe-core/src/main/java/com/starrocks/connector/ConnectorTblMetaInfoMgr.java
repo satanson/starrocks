@@ -88,6 +88,12 @@ public class ConnectorTblMetaInfoMgr {
                 return;
             }
             tableInfo.removeMetaInfo(connectorTableInfo);
+            if (tableInfo.empty()) {
+                tableInfoMap.remove(tableIdentifier);
+            }
+            if (tableInfoMap.isEmpty()) {
+                connectorTableMetaInfos.remove(catalog, db);
+            }
             LOG.info("{}.{}.{} remove persistent connector table info : {}", catalog, db, tableIdentifier,
                     connectorTableInfo);
         } finally {
@@ -109,6 +115,7 @@ public class ConnectorTblMetaInfoMgr {
      * A debugging interface for dump the content as JSON
      */
     public String inspect() {
+<<<<<<< HEAD
         JsonObject res = new JsonObject();
         connectorTableMetaInfos.cellSet().forEach(cell -> {
             String catalog = cell.getRowKey();
@@ -119,6 +126,23 @@ public class ConnectorTblMetaInfoMgr {
             });
         });
         return res.toString();
+=======
+        readLock();
+        try {
+            JsonObject res = new JsonObject();
+            connectorTableMetaInfos.cellSet().forEach(cell -> {
+                String catalog = cell.getRowKey();
+                String db = cell.getColumnKey();
+                cell.getValue().forEach((tableName, tableInfo) -> {
+                    TableName key = new TableName(catalog, db, tableName);
+                    res.add(key.toString(), tableInfo.inspect());
+                });
+            });
+            return res.toString();
+        } finally {
+            readUnlock();
+        }
+>>>>>>> 5003d5e37e ([BugFix] fix inspect meta functions (#32710) (#32726))
     }
 
     private void writeLock() {
