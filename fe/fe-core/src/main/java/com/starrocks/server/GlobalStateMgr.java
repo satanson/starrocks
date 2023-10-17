@@ -3618,7 +3618,7 @@ public class GlobalStateMgr {
                     ctx.getCurrentRoleIds(), ctx.getCurrentCatalog(), dbName);
         } catch (AccessDeniedException e) {
             ErrorReport.reportDdlException(ErrorCode.ERR_DB_ACCESS_DENIED,
-                    ctx.getQualifiedUser(), dbName);
+                    ctx.getCurrentUserIdentity().getUser(), dbName);
         }
 
         ctx.setDatabase(dbName);
