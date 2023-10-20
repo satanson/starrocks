@@ -178,6 +178,8 @@ public class AuthorizationMgr {
                     ObjectType.MATERIALIZED_VIEW,
                     ObjectType.RESOURCE,
                     ObjectType.RESOURCE_GROUP,
+                    ObjectTypeEPack.MASKING_POLICY,
+                    ObjectTypeEPack.ROW_ACCESS_POLICY,
                     ObjectType.FUNCTION,
                     ObjectType.GLOBAL_FUNCTION,
                     ObjectType.STORAGE_VOLUME)) {
@@ -1776,7 +1778,7 @@ public class AuthorizationMgr {
                 ret = reader.readJson(AuthorizationMgr.class);
                 ret.globalStateMgr = globalStateMgr;
                 if (provider == null) {
-                    ret.provider = new DefaultAuthorizationProvider();
+                    ret.provider = new AuthorizationProviderEPack();
                 } else {
                     ret.provider = provider;
                 }
@@ -1921,7 +1923,7 @@ public class AuthorizationMgr {
             AuthorizationMgr ret = reader.readJson(AuthorizationMgr.class);
             ret.globalStateMgr = globalStateMgr;
             if (provider == null) {
-                ret.provider = new DefaultAuthorizationProvider();
+                ret.provider = new AuthorizationProviderEPack();
             } else {
                 ret.provider = provider;
             }
