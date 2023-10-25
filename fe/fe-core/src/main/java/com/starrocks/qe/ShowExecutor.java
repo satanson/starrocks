@@ -225,6 +225,7 @@ import com.starrocks.sql.ast.ShowWarehousesStmt;
 import com.starrocks.sql.ast.UserIdentity;
 import com.starrocks.sql.common.MetaUtils;
 import com.starrocks.sql.parser.NodePosition;
+import com.starrocks.sql.parser.SqlParser;
 import com.starrocks.statistic.AnalyzeJob;
 import com.starrocks.statistic.AnalyzeStatus;
 import com.starrocks.statistic.BasicStatsMeta;
@@ -2553,7 +2554,8 @@ public class ShowExecutor {
                 policy.getArgNames(),
                 policy.getArgTypes().stream().map(TypeDef::new).collect(Collectors.toList()),
                 new TypeDef(policy.getRetType()),
-                policy.getPolicyExpression(), policy.getComment(), NodePosition.ZERO)));
+                SqlParser.parseSqlToExpr(policy.getPolicyExpressionSQL(), SqlModeHelper.MODE_DEFAULT),
+                policy.getComment(), NodePosition.ZERO)));
 
         resultSet = new ShowResultSet(stmt.getMetaData(), Collections.singletonList(row));
     }

@@ -1696,6 +1696,5 @@ public class ExpressionAnalyzer {
         expressionAnalyzer.analyzeIgnoreSlot(expression, new AnalyzeState(),
                 new Scope(RelationId.anonymous(), new RelationFields()));
     }
-
 }
 
