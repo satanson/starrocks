@@ -152,6 +152,7 @@ import com.starrocks.privilege.FunctionPEntryObject;
 import com.starrocks.privilege.GlobalFunctionPEntryObject;
 import com.starrocks.privilege.MaterializedViewPEntryObject;
 import com.starrocks.privilege.PEntryObject;
+import com.starrocks.privilege.PipePFCEntryObject;
 import com.starrocks.privilege.ResourceGroupPEntryObject;
 import com.starrocks.privilege.ResourcePEntryObject;
 import com.starrocks.privilege.StorageVolumePEntryObject;
@@ -313,7 +314,8 @@ public class GsonUtils {
                     .registerSubtype(ResourceGroupPEntryObject.class, "ResourceGroupPEntryObject")
                     .registerSubtype(StorageVolumePEntryObject.class, "StorageVolumePEntryObject")
                     .registerSubtype(PolicyPEntryObject.class, "PolicyPEntryObject")
-                    .registerSubtype(ForwardCompatiblePEntryObject.class, "WarehousePEntryObject");
+                    .registerSubtype(ForwardCompatiblePEntryObject.class, "WarehousePEntryObject")
+                    .registerSubtype(PipePFCEntryObject.class, "PipePEntryObject");
 
     private static final RuntimeTypeAdapterFactory<RoleMapping> ROLE_MAPPING_RUNTIME_TYPE_ADAPTER_FACTORY =
             RuntimeTypeAdapterFactory.of(RoleMapping.class, "clazz")
