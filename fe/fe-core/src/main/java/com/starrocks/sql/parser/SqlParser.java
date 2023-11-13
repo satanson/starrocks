@@ -162,7 +162,7 @@ public class SqlParser {
                 .visit(parserBuilder(expressionSql, sessionVariable).importColumns());
     }
 
-    private static StarRocksParser parserBuilder(String sql, SessionVariable sessionVariable) {
+    public static StarRocksParser parserBuilder(String sql, SessionVariable sessionVariable) {
         StarRocksLexer lexer = new StarRocksLexer(new CaseInsensitiveStream(CharStreams.fromString(sql)));
         lexer.setSqlMode(sessionVariable.getSqlMode());
         CommonTokenStream tokenStream = new CommonTokenStream(lexer);

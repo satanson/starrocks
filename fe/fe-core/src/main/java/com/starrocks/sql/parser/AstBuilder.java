@@ -396,6 +396,10 @@ import com.starrocks.sql.ast.UserIdentity;
 import com.starrocks.sql.ast.UserVariable;
 import com.starrocks.sql.ast.ValueList;
 import com.starrocks.sql.ast.ValuesRelation;
+import com.starrocks.sql.automv.ast.AlterTunespaceClause;
+import com.starrocks.sql.automv.ast.AlterTunespaceStmt;
+import com.starrocks.sql.automv.ast.CreateTunespaceStmt;
+import com.starrocks.sql.automv.ast.ShowRecommendationsStmt;
 import com.starrocks.sql.common.EngineType;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.RuleContext;
@@ -422,6 +426,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import static com.starrocks.sql.common.ErrorMsgProxy.PARSER_ERROR_MSG;
@@ -6373,6 +6378,73 @@ public class AstBuilder extends StarRocksBaseVisitor<ParseNode> {
     public ParseNode visitUserWithoutHost(StarRocksParser.UserWithoutHostContext context) {
         Identifier user = (Identifier) visit(context.identifierOrString());
         return new UserIdentity(user.getValue(), "%", false, createPos(context), false);
+    }
+
+    // tunespace
+    @Override
+    public ParseNode visitCreateTunespaceStatement(StarRocksParser.CreateTunespaceStatementContext ctx) {
+        TableName tableName = qualifiedNameToTableName(getQualifiedName(ctx.qualifiedName()));
+        return new CreateTunespaceStmt(tableName, ctx.IF() != null);
+    }
+
+    @Override
+    public ParseNode visitDropTunespaceStatement(StarRocksParser.DropTunespaceStatementContext ctx) {
+        boolean ifExists = ctx.IF() != null && ctx.EXISTS() != null;
+        QualifiedName qualifiedName = getQualifiedName(ctx.qualifiedName());
+        TableName targetTableName = qualifiedNameToTableName(qualifiedName);
+        return new DropTableStmt(ifExists, targetTableName, false, true, createPos(ctx));
+    }
+
+    @Override
+    public ParseNode visitTruncateTunespaceStatement(StarRocksParser.TruncateTunespaceStatementContext ctx) {
+        QualifiedName qualifiedName = getQualifiedName(ctx.qualifiedName());
+        TableName targetTableName = qualifiedNameToTableName(qualifiedName);
+        Token start = ctx.start;
+        Token stop = ctx.stop;
+        NodePosition pos = createPos(start, stop);
+        return new TruncateTableStmt(new TableRef(targetTableName, null, null, pos));
+    }
+
+    @Override
+    public ParseNode visitAlterTunespaceStatement(StarRocksParser.AlterTunespaceStatementContext ctx) {
+        TableName tableName = qualifiedNameToTableName(getQualifiedName(ctx.qualifiedName()));
+        if (ctx.alterTunespaceClause().APPEND() != null) {
+            QueryStatement queryStatement = (QueryStatement) visit(ctx.alterTunespaceClause().queryStatement());
+            return new AlterTunespaceStmt(tableName, new AlterTunespaceClause.AppendClause(queryStatement));
+        } else {
+            Preconditions.checkArgument(ctx.alterTunespaceClause().POPULATE() != null);
+            if (ctx.alterTunespaceClause().AS() != null) {
+                QueryStatement queryStatement = (QueryStatement) visit(ctx.alterTunespaceClause().queryStatement());
+                return new AlterTunespaceStmt(tableName,
+                        new AlterTunespaceClause.PopulateAsQueryClause(queryStatement));
+            } else if (ctx.alterTunespaceClause().DATABASE() != null) {
+                QualifiedName db = getQualifiedName(ctx.alterTunespaceClause().database);
+                return new AlterTunespaceStmt(tableName, new AlterTunespaceClause.PopulateFromLegacyMVClause(db));
+            } else if (ctx.alterTunespaceClause().srcTunespace != null) {
+                Preconditions.checkArgument(ctx.alterTunespaceClause().srcTunespace != null);
+                TableName srcTunespace =
+                        qualifiedNameToTableName(getQualifiedName(ctx.alterTunespaceClause().srcTunespace));
+                return new AlterTunespaceStmt(tableName,
+                        new AlterTunespaceClause.PopulateFromTunespaceClause(srcTunespace));
+            } else {
+                Preconditions.checkArgument(ctx.alterTunespaceClause().DELETE() != null);
+                Preconditions.checkArgument(ctx.alterTunespaceClause().where != null);
+                QualifiedName qualifiedName = getQualifiedName(ctx.qualifiedName());
+                TableName targetTableName = qualifiedNameToTableName(qualifiedName);
+                Expr where = (Expr) visit(ctx.alterTunespaceClause().where);
+                return new DeleteStmt(targetTableName, null, null, where, null, createPos(ctx));
+            }
+        }
+    }
+
+    @Override
+    public ParseNode visitShowRecommendationsStatement(StarRocksParser.ShowRecommendationsStatementContext ctx) {
+        TableName tableName = qualifiedNameToTableName(getQualifiedName(ctx.qualifiedName()));
+        Optional<LimitElement> limitElement = Optional.ofNullable(ctx.limitElement())
+                .map(limitElm -> (LimitElement) visitLimitElement(limitElm));
+        long limit = limitElement.map(LimitElement::getLimit).orElse(-1L);
+        long offset = limitElement.map(LimitElement::getOffset).orElse(-1L);
+        return new ShowRecommendationsStmt(tableName, limit, offset);
     }
 
     // ------------------------------------------- Util Functions -------------------------------------------

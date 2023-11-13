@@ -88,6 +88,8 @@ set(RUNTIME_FILES
     schema_table_sink.cpp
     command_executor.cpp
     iceberg_table_sink.cpp
+    type_pack.cpp
+    customized_result_writer.cpp
 )
 
 set(RUNTIME_FILES ${RUNTIME_FILES}

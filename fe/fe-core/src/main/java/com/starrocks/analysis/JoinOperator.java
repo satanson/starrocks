@@ -34,6 +34,7 @@
 
 package com.starrocks.analysis;
 
+import com.google.common.base.Preconditions;
 import com.google.common.collect.Sets;
 import com.starrocks.thrift.TJoinOp;
 
@@ -145,6 +146,11 @@ public enum JoinOperator {
         return this == RIGHT_OUTER_JOIN || this == RIGHT_ANTI_JOIN || this == RIGHT_SEMI_JOIN;
     }
 
+    public boolean isLeftJoin() {
+        return this == LEFT_OUTER_JOIN || this == LEFT_ANTI_JOIN || this == LEFT_SEMI_JOIN ||
+                this == NULL_AWARE_LEFT_ANTI_JOIN;
+    }
+
     // Left transform means that the Join operation can be considered as a transformation operation
     // on left hand side in collective computation. for examples:
     // 1. INNER_JOIN:  lhs.flatMap(l->rhs.flatMap(r->if( l match r){listOf(concat(l,r))} else {emptyList()}))
@@ -162,6 +168,15 @@ public enum JoinOperator {
 
     public static Set<JoinOperator> innerCrossJoinSet() {
         return Sets.newHashSet(INNER_JOIN, CROSS_JOIN);
+    }
+
+    public boolean isNullAwareLeftAntiJoin() {
+        return this.equals(NULL_AWARE_LEFT_ANTI_JOIN);
+    }
+
+    public String toSql() {
+        Preconditions.checkArgument(!this.isNullAwareLeftAntiJoin());
+        return this.description;
     }
 }
 

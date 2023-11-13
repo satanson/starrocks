@@ -30,6 +30,7 @@ import com.starrocks.catalog.Type;
 import com.starrocks.common.Pair;
 import com.starrocks.qe.ConnectContext;
 import com.starrocks.server.GlobalStateMgr;
+import com.starrocks.sql.optimizer.base.ColumnRefSet;
 import com.starrocks.sql.optimizer.operator.Operator;
 import com.starrocks.sql.optimizer.operator.OperatorType;
 import com.starrocks.sql.optimizer.operator.logical.LogicalHiveScanOperator;
@@ -642,6 +643,43 @@ public class Utils {
         return StreamSupport.stream(iter, false);
     }
 
+    public static Set<Pair<ColumnRefOperator, ColumnRefOperator>> getColumnPairsFromEqualPredicates(
+            List<BinaryPredicateOperator> equalPredicates) {
+        Set<Pair<ColumnRefOperator, ColumnRefOperator>> eqColumnRefPairs = Sets.newHashSet();
+        for (BinaryPredicateOperator eqPredicate : equalPredicates) {
+            ColumnRefOperator leftCol = eqPredicate.getChild(0).cast();
+            ColumnRefOperator rightCol = eqPredicate.getChild(1).cast();
+            eqColumnRefPairs.add(Pair.create(leftCol, rightCol));
+        }
+        return eqColumnRefPairs;
+    }
+
+    public static List<List<ScalarOperator>> splitPredicates(List<ScalarOperator> predicates,
+                                                             ColumnRefSet... columnRefSets) {
+
+        List<List<ScalarOperator>> predicateGroups = Lists.newArrayList();
+        for (int i = 0; i < columnRefSets.length + 2; ++i) {
+            predicateGroups.add(Lists.newArrayList());
+        }
+
+        for (ScalarOperator p : predicates) {
+            ColumnRefSet columnRefSet = p.getUsedColumns();
+            int ordinal;
+            if (columnRefSet.isEmpty()) {
+                ordinal = 0;
+            } else {
+                int i = 0;
+                while (i < columnRefSets.length && !columnRefSets[i].containsAll(columnRefSet)) {
+                    ++i;
+                }
+                ordinal = i + 1;
+            }
+
+            predicateGroups.get(ordinal).add(p);
+        }
+        return predicateGroups;
+    }
+
     public static Set<Pair<ColumnRefOperator, ColumnRefOperator>> getJoinEqualColRefPairs(OptExpression joinOp) {
         Pair<List<BinaryPredicateOperator>, List<ScalarOperator>> onPredicates =
                 JoinHelper.separateEqualPredicatesFromOthers(joinOp);
@@ -651,13 +689,7 @@ public class Utils {
         if (!otherOnPredicates.isEmpty() || eqOnPredicates.isEmpty()) {
             return Collections.emptySet();
         }
-        Set<Pair<ColumnRefOperator, ColumnRefOperator>> eqColumnRefPairs = Sets.newHashSet();
-        for (BinaryPredicateOperator eqPredicate : eqOnPredicates) {
-            ColumnRefOperator leftCol = eqPredicate.getChild(0).cast();
-            ColumnRefOperator rightCol = eqPredicate.getChild(1).cast();
-            eqColumnRefPairs.add(Pair.create(leftCol, rightCol));
-        }
-        return eqColumnRefPairs;
+        return getColumnPairsFromEqualPredicates(eqOnPredicates);
     }
 
     public static Map<ColumnRefOperator, ColumnRefOperator> makeEqColumRefMapFromSameTables(

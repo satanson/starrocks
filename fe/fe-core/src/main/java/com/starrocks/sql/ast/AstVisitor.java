@@ -65,6 +65,9 @@ import com.starrocks.epack.sql.ast.ShowCreateSecurityIntegrationStatement;
 import com.starrocks.epack.sql.ast.ShowPolicyStmt;
 import com.starrocks.epack.sql.ast.ShowRoleMappingStatement;
 import com.starrocks.epack.sql.ast.ShowSecurityIntegrationStatement;
+import com.starrocks.sql.automv.ast.AlterTunespaceStmt;
+import com.starrocks.sql.automv.ast.CreateTunespaceStmt;
+import com.starrocks.sql.automv.ast.ShowRecommendationsStmt;
 
 public abstract class AstVisitor<R, C> {
     public R visit(ParseNode node) {
@@ -1258,5 +1261,17 @@ public abstract class AstVisitor<R, C> {
 
     public R visitSetVarHint(SetVarHint node, C context) {
         return visitNode(node, context);
+    }
+
+    // tunespace
+    public R visitCreateTunespaceStmt(CreateTunespaceStmt node, C context) {
+        return null;
+    }
+
+    public R visitAlterTunespaceStmt(AlterTunespaceStmt node, C context) {
+        return null;
+    }
+    public R visitShowRecommendationsStmt(ShowRecommendationsStmt node, C context) {
+        return null;
     }
 }

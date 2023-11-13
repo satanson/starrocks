@@ -249,6 +249,12 @@ struct RunTimeTypeTraits<TYPE_JSON> {
 };
 
 template <>
+struct RunTimeTypeTraits<TYPE_BINARY> {
+  using CppType = Slice;
+  using ColumnType = BinaryColumn;
+};
+
+template <>
 struct RunTimeTypeTraits<TYPE_VARBINARY> {
     using CppType = Slice;
     using ColumnType = BinaryColumn;

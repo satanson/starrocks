@@ -23,6 +23,7 @@
 #include "runtime/runtime_state.h"
 #include "runtime/statistic_result_writer.h"
 #include "runtime/variable_result_writer.h"
+#include "runtime/customized_result_writer.h"
 
 namespace starrocks::pipeline {
 Status ResultSinkOperator::prepare(RuntimeState* state) {
@@ -41,6 +42,9 @@ Status ResultSinkOperator::prepare(RuntimeState* state) {
         break;
     case TResultSinkType::VARIABLE:
         _writer = std::make_shared<VariableResultWriter>(_sender.get(), _output_expr_ctxs, _profile.get());
+        break;
+    case TResultSinkType::CUSTOMIZED:
+        _writer = std::make_shared<CustomizedResultWriter>(_sender.get(), _output_expr_ctxs, _profile.get());
         break;
     default:
         return Status::InternalError("Unknown result sink type");

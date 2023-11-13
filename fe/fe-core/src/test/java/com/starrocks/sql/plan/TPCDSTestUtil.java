@@ -14,7 +14,24 @@
 
 package com.starrocks.sql.plan;
 
+import com.starrocks.common.Pair;
 import com.starrocks.utframe.StarRocksAssert;
+import joptsimple.internal.Strings;
+import kotlin.text.Charsets;
+import org.apache.commons.io.IOUtils;
+
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Objects;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class TPCDSTestUtil {
     public static void prepareTables(StarRocksAssert starRocksAssert) throws Exception {
@@ -683,5 +700,40 @@ public class TPCDSTestUtil {
                 "\"replication_num\" = \"1\",\n" +
                 "\"in_memory\" = \"false\"\n" +
                 ");");
+    }
+
+    public static List<Pair<String, String>> getQueryList(String querySet, Pattern filePat) {
+        final String currentDir = System.getProperty("user.dir");
+        final File queryDir = new File(currentDir + "/src/test/resources/" + querySet);
+        return Arrays.stream(Objects.requireNonNull(queryDir.listFiles()))
+                .flatMap(f -> {
+                    Matcher mat = filePat.matcher(f.getName());
+                    if (mat.matches()) {
+                        return Stream.of(Pair.create(mat.group(1), f));
+                    } else {
+                        return Stream.empty();
+                    }
+                }).map(p -> {
+                    try (InputStream fin = Files.newInputStream(p.second.toPath())) {
+                        String content = Strings.join(IOUtils.readLines(fin, Charsets.UTF_8), "\n");
+                        //content = content.replaceAll(trimTrailing.pattern(), "");
+                        return Pair.create(p.first, content);
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                }).sorted(Comparator.comparing(p -> p.first)).collect(Collectors.toList());
+    }
+
+    public static List<Pair<String, String>> getAllQueries() {
+        return getQueryList("sql/tpcds", Pattern.compile("(query\\d+)\\.sql"));
+    }
+
+    public static String getQuery(String name) {
+        List<Pair<String, String>> queryList = getQueryList("sql/tpcds", Pattern.compile("(" + name + ")\\.sql"));
+        if (queryList.isEmpty()) {
+            return null;
+        } else {
+            return queryList.get(0).second;
+        }
     }
 }

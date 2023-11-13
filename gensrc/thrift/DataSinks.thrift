@@ -60,6 +60,8 @@ enum TResultSinkType {
     FILE,
     STATISTIC,
     VARIABLE
+    HTTP_PROTOCAL,
+    CUSTOMIZED
 }
 
 struct TParquetOptions {

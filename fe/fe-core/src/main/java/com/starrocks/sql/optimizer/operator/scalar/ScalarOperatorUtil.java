@@ -14,6 +14,7 @@
 
 package com.starrocks.sql.optimizer.operator.scalar;
 
+import com.google.common.base.Functions;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 import com.starrocks.analysis.Expr;
@@ -24,7 +25,12 @@ import com.starrocks.catalog.ScalarType;
 import com.starrocks.catalog.Type;
 import com.starrocks.server.GlobalStateMgr;
 import com.starrocks.sql.analyzer.DecimalV3FunctionAnalyzer;
+import com.starrocks.sql.optimizer.rewrite.ReplaceColumnRefRewriter;
 import com.starrocks.sql.optimizer.rewrite.ScalarOperatorRewriter;
+
+import java.util.Collection;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 import static com.starrocks.catalog.Function.CompareMode.IS_IDENTICAL;
 import static com.starrocks.catalog.Function.CompareMode.IS_NONSTRICT_SUPERTYPE_OF;
@@ -85,5 +91,17 @@ public class ScalarOperatorUtil {
                 new CallOperator(
                         FunctionSet.MULTI_DISTINCT_SUM, multiDistinctSum.getReturnType(),
                         oldFunctionCall.getChildren(), multiDistinctSum), DEFAULT_TYPE_CAST_RULE);
+    }
+
+    public static ScalarOperator constFold(ScalarOperator op) {
+        ScalarOperatorRewriter rewriter = new ScalarOperatorRewriter();
+        return rewriter.rewrite(op, ScalarOperatorRewriter.DEFAULT_REWRITE_RULES);
+    }
+
+    public static ScalarOperator applyNullsPartially(ScalarOperator op, Collection<ColumnRefOperator> columns) {
+        Map<ColumnRefOperator, ScalarOperator> args = columns.stream()
+                .collect(Collectors.toMap(Functions.identity(), (v) -> ConstantOperator.NULL));
+        ReplaceColumnRefRewriter rewriter = new ReplaceColumnRefRewriter(args, false);
+        return rewriter.rewrite(op);
     }
 }

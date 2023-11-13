@@ -132,6 +132,10 @@ import com.starrocks.sql.ast.UninstallPluginStmt;
 import com.starrocks.sql.ast.UpdateStmt;
 import com.starrocks.sql.ast.UseCatalogStmt;
 import com.starrocks.sql.ast.UseDbStmt;
+import com.starrocks.sql.automv.analysis.TunespaceAnalyzer;
+import com.starrocks.sql.automv.ast.AlterTunespaceStmt;
+import com.starrocks.sql.automv.ast.CreateTunespaceStmt;
+import com.starrocks.sql.automv.ast.ShowRecommendationsStmt;
 
 public class AnalyzerVisitor extends AstVisitor<Void, ConnectContext> {
     public void analyze(StatementBase statement, ConnectContext session) {
@@ -835,5 +839,21 @@ public class AnalyzerVisitor extends AstVisitor<Void, ConnectContext> {
     public Void visitCancelCompactionStatement(CancelCompactionStmt statement, ConnectContext context) {
         CancelCompactionStmtAnalyzer.analyze(statement, context);
         return null;
+    }
+
+    // tunespace
+    @Override
+    public Void visitCreateTunespaceStmt(CreateTunespaceStmt node, ConnectContext context) {
+        return TunespaceAnalyzer.analyze(node, context);
+    }
+
+    @Override
+    public Void visitAlterTunespaceStmt(AlterTunespaceStmt node, ConnectContext context) {
+        return TunespaceAnalyzer.analyze(node, context);
+    }
+
+    @Override
+    public Void visitShowRecommendationsStmt(ShowRecommendationsStmt node, ConnectContext context) {
+        return TunespaceAnalyzer.analyze(node, context);
     }
 }
