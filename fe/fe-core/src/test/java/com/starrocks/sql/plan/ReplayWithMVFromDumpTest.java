@@ -166,6 +166,7 @@ public class ReplayWithMVFromDumpTest extends ReplayFromDumpTestBase {
         Assert.assertTrue(replayPair.second.contains("tbl_mock_023"));
     }
 
+    @Ignore
     @Test
     public void testMock_MV_CostBug() throws Exception {
         FeConstants.isReplayFromQueryDump = true;

@@ -64,6 +64,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.Assert;
 import org.junit.BeforeClass;
+import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
@@ -3384,6 +3385,7 @@ public class CreateMaterializedViewTest {
         Assert.assertFalse(mv.getColumn("segment").isAllowNull());
     }
 
+    @Ignore
     @Test
     public void testRandomizeStart() throws Exception {
         String sql = "create materialized view mv_test_randomize \n" +

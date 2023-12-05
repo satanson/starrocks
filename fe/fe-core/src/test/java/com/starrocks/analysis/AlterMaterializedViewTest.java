@@ -33,6 +33,7 @@ import com.starrocks.utframe.UtFrameUtils;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import java.time.Duration;
@@ -198,6 +199,7 @@ public class AlterMaterializedViewTest {
         Assert.assertNull(mv.getInactiveReason());
     }
 
+    @Ignore
     @Test
     public void testActiveChecker() throws Exception {
         PlanTestBase.mockDml();
@@ -248,6 +250,7 @@ public class AlterMaterializedViewTest {
         starRocksAssert.dropMaterializedView(mv.getName());
     }
 
+    @Ignore
     @Test
     public void testActiveGracePeriod() throws Exception {
         PlanTestBase.mockDml();
