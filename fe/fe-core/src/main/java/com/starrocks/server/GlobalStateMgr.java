@@ -922,6 +922,10 @@ public class GlobalStateMgr {
         return getCurrentState().getStarOSAgent();
     }
 
+    public static StarMgrMetaSyncer getCurrentStarMgrMetaSyncer() {
+        return getCurrentState().getStarMgrMetaSyncer();
+    }
+
     public static WarehouseManager getCurrentWarehouseMgr() {
         return getCurrentState().getWarehouseMgr();
     }
@@ -979,6 +983,10 @@ public class GlobalStateMgr {
 
     public StarOSAgent getStarOSAgent() {
         return starOSAgent;
+    }
+
+    public StarMgrMetaSyncer getStarMgrMetaSyncer() {
+        return starMgrMetaSyncer;
     }
 
     public CatalogMgr getCatalogMgr() {
