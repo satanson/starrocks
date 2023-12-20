@@ -1174,11 +1174,11 @@ public class AlterJobMgr {
                 AlterViewClause alterViewClause = (AlterViewClause) alterClause;
                 String inlineViewDef = alterViewClause.getInlineViewDef();
                 List<Column> newFullSchema = alterViewClause.getColumns();
+                String comment = alterViewClause.getComment();
                 long sqlMode = ctx.getSessionVariable().getSqlMode();
 
                 View view = (View) table;
                 String viewName = view.getName();
-
                 view.setInlineViewDefWithSqlMode(inlineViewDef, ctx.getSessionVariable().getSqlMode());
                 try {
                     view.init();
@@ -1186,12 +1186,13 @@ public class AlterJobMgr {
                     throw new DdlException("failed to init view stmt", e);
                 }
                 view.setNewFullSchema(newFullSchema);
-
+                view.setComment(comment);
                 LocalMetastore.inactiveRelatedMaterializedView(db, view, String.format("base view %s changed", viewName));
                 db.dropTable(viewName);
                 db.registerTableUnlocked(view);
 
-                AlterViewInfo alterViewInfo = new AlterViewInfo(db.getId(), view.getId(), inlineViewDef, newFullSchema, sqlMode);
+                AlterViewInfo alterViewInfo = new AlterViewInfo(db.getId(), view.getId(), inlineViewDef, newFullSchema,
+                        sqlMode, comment);
                 GlobalStateMgr.getCurrentState().getEditLog().logModifyViewDef(alterViewInfo);
                 LOG.info("modify view[{}] definition to {}", viewName, inlineViewDef);
             } else {
@@ -1207,6 +1208,7 @@ public class AlterJobMgr {
         long tableId = alterViewInfo.getTableId();
         String inlineViewDef = alterViewInfo.getInlineViewDef();
         List<Column> newFullSchema = alterViewInfo.getNewFullSchema();
+        String comment = alterViewInfo.getComment();
 
         Database db = GlobalStateMgr.getCurrentState().getDb(dbId);
         db.writeLock();
@@ -1220,6 +1222,9 @@ public class AlterJobMgr {
                 throw new DdlException("failed to init view stmt", e);
             }
             view.setNewFullSchema(newFullSchema);
+            if (comment != null) {
+                view.setComment(comment);
+            }
 
             LocalMetastore.inactiveRelatedMaterializedView(db, view, String.format("base view %s changed", viewName));
             db.dropTable(viewName);
