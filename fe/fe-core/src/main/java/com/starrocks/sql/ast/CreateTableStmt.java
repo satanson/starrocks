@@ -88,6 +88,24 @@ public class CreateTableStmt extends DdlStmt {
                            DistributionDesc distributionDesc,
                            Map<String, String> properties,
                            Map<String, String> extProperties,
+                           String comment, List<AlterClause> rollupAlterClauseList, List<String> sortKeys) {
+        this(ifNotExists, isExternal, tableName, columnDefinitions, indexDefs, engineName, charsetName, keysDesc,
+                partitionDesc, distributionDesc, properties, extProperties, comment, rollupAlterClauseList,
+                sortKeys, NodePosition.ZERO);
+    }
+
+    public CreateTableStmt(boolean ifNotExists,
+                           boolean isExternal,
+                           TableName tableName,
+                           List<ColumnDef> columnDefinitions,
+                           List<IndexDef> indexDefs,
+                           String engineName,
+                           String charsetName,
+                           KeysDesc keysDesc,
+                           PartitionDesc partitionDesc,
+                           DistributionDesc distributionDesc,
+                           Map<String, String> properties,
+                           Map<String, String> extProperties,
                            String comment, List<AlterClause> rollupAlterClauseList, List<String> sortKeys,
                            NodePosition pos) {
         super(pos);
