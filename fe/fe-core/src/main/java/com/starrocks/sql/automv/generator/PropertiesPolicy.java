@@ -51,6 +51,11 @@ public class PropertiesPolicy {
                 .map(tablePiece -> tablePiece.getTable().getTable())
                 .filter(Table::isCloudNativeTableOrMaterializedView)
                 .collect(Collectors.toList());
+
+        boolean hasExternalTables = tablePieces.stream()
+                .map(tablePiece -> tablePiece.getTable().getTable())
+                .anyMatch(table -> !table.isCloudNativeTableOrMaterializedView());
+
         Map<String, String> propItems = Maps.newHashMap();
         try {
             propItems.put(PropertyAnalyzer.PROPERTIES_REPLICATION_NUM, "" + calcReplicationNum());
@@ -67,6 +72,11 @@ public class PropertiesPolicy {
             propItems.put(PropertyAnalyzer.PROPERTIES_REPLICATED_STORAGE, "true");
             propItems.put(PropertyAnalyzer.PROPERTIES_STORAGE_MEDIUM, "HDD");
         }
+
+        if (hasExternalTables) {
+            propItems.put(PropertyAnalyzer.PROPERTIES_FORCE_EXTERNAL_TABLE_QUERY_REWRITE, "CHECKED");
+        }
+
         List<PrettyPrinter> items = propItems.entrySet().stream()
                 .map(e -> new PrettyPrinter().addDoubleQuoted(e.getKey()).add(" = ").addDoubleQuoted(e.getValue()))
                 .collect(Collectors.toList());
