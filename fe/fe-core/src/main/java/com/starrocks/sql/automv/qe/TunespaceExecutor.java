@@ -43,6 +43,7 @@ import com.starrocks.sql.automv.pieces.PlanPiece;
 import com.starrocks.sql.automv.tunespace.MaterializedViewPlus;
 import com.starrocks.sql.automv.tunespace.PlanPieceInfo;
 import com.starrocks.sql.automv.tunespace.QueryStatementPlus;
+import com.starrocks.sql.automv.tunespace.TableNamePlus;
 import com.starrocks.sql.automv.tunespace.TablePlus;
 import com.starrocks.sql.automv.util.Util;
 import com.starrocks.sql.optimizer.OptExpression;
@@ -79,7 +80,8 @@ public class TunespaceExecutor {
         public ShowResultSet visitCreateTunespaceStmt(CreateTunespaceStmt stmt, ConnectContext context) {
             try {
                 int replicationNum = PropertiesPolicy.calcReplicationNum();
-                TablePlus table = PlanPieceInfo.getTable(stmt.getTableName().toString(), 10, replicationNum);
+                String fqName = TableNamePlus.of(stmt.getTableName()).getFqName();
+                TablePlus table = PlanPieceInfo.getTable(fqName, 10, replicationNum);
                 exec(table.getCreateTableSql(), CreateTableStmt.class, context);
             } catch (Exception e) {
                 throw new RuntimeException(e);
@@ -89,14 +91,15 @@ public class TunespaceExecutor {
 
         @Override
         public ShowResultSet visitAlterTunespaceStmt(AlterTunespaceStmt stmt, ConnectContext context) {
+            String fqTableName = TableNamePlus.of(stmt.getTableName()).getFqName();
             if (stmt.getAlterClause() instanceof AlterTunespaceClause.AppendClause) {
-                return handleAppendClause(stmt.getTableName(),
+                return handleAppendClause(fqTableName,
                         (AlterTunespaceClause.AppendClause) stmt.getAlterClause(), context);
             } else if (stmt.getAlterClause() instanceof AlterTunespaceClause.PopulateFromLegacyMVClause) {
-                return handlePopulateFromLegacyMVClause(stmt.getTableName(),
+                return handlePopulateFromLegacyMVClause(fqTableName,
                         (AlterTunespaceClause.PopulateFromLegacyMVClause) stmt.getAlterClause(), context);
             } else if (stmt.getAlterClause() instanceof AlterTunespaceClause.PopulateFromTunespaceClause) {
-                return handlePopulateFromTunespaceClause(stmt.getTableName(),
+                return handlePopulateFromTunespaceClause(fqTableName,
                         (AlterTunespaceClause.PopulateFromTunespaceClause) stmt.getAlterClause(), context);
             } else if (stmt.getAlterClause() instanceof AlterTunespaceClause.PopulateAsQueryClause) {
                 throw new SemanticException("Not support");
@@ -104,7 +107,7 @@ public class TunespaceExecutor {
             return null;
         }
 
-        private ShowResultSet handleAppendClause(TableName tableName, AlterTunespaceClause.AppendClause appendClause,
+        private ShowResultSet handleAppendClause(String fqTableName, AlterTunespaceClause.AppendClause appendClause,
                                                  ConnectContext context) {
             QueryStatement queryStmt = appendClause.getQueryStatement().getQueryStatement();
             Map<String, FQTable> fqTableMap = appendClause.getQueryStatement().getFqTableMap();
@@ -115,7 +118,6 @@ public class TunespaceExecutor {
             if (pieceInfos.isEmpty()) {
                 return null;
             }
-            String fqTableName = tableName.toSql();
             String insertSql = PlanPieceInfo.getTable(fqTableName, 1, 1).getInsertSql(pieceInfos);
             try {
                 exec(insertSql, InsertStmt.class, context);
@@ -125,7 +127,7 @@ public class TunespaceExecutor {
             return null;
         }
 
-        private ShowResultSet handlePopulateFromLegacyMVClause(TableName tableName,
+        private ShowResultSet handlePopulateFromLegacyMVClause(String fqTableName,
                                                                AlterTunespaceClause.PopulateFromLegacyMVClause clause,
                                                                ConnectContext context) {
             Preconditions.checkArgument(clause.getDb() != null);
@@ -164,7 +166,6 @@ public class TunespaceExecutor {
 
             }
             if (!pieceInfos.isEmpty()) {
-                String fqTableName = tableName.toString();
                 String insertSql = PlanPieceInfo.getTable(fqTableName, 1, 1).getInsertSql(pieceInfos);
                 try {
                     exec(insertSql, InsertStmt.class, context);
@@ -175,12 +176,13 @@ public class TunespaceExecutor {
             return null;
         }
 
-        private ShowResultSet handlePopulateFromTunespaceClause(TableName tableName,
+        private ShowResultSet handlePopulateFromTunespaceClause(String fqTableName,
                                                                 AlterTunespaceClause.PopulateFromTunespaceClause clause,
                                                                 ConnectContext context) {
             Preconditions.checkArgument(clause.getSrcTableName() != null);
-            TablePlus dstTable = PlanPieceInfo.getTable(tableName.toSql(), 1, 1);
-            String insertAsSelectSql = dstTable.getInsertAsSelectSql(clause.getSrcTableName().toSql());
+            TablePlus dstTable = PlanPieceInfo.getTable(fqTableName, 1, 1);
+            String srcFqTableName = TableNamePlus.of(clause.getSrcTableName()).getFqName();
+            String insertAsSelectSql = dstTable.getInsertAsSelectSql(srcFqTableName);
             try {
                 exec(insertAsSelectSql, InsertStmt.class, context);
             } catch (Exception e) {
@@ -191,8 +193,8 @@ public class TunespaceExecutor {
 
         @Override
         public ShowResultSet visitShowRecommendationsStmt(ShowRecommendationsStmt node, ConnectContext context) {
-            String tableName = node.getTableName().toString();
-            TablePlus table = PlanPieceInfo.getTable(tableName, 1, 1);
+            String fqTableName = TableNamePlus.of(node.getTableName()).getFqName();
+            TablePlus table = PlanPieceInfo.getTable(fqTableName, 1, 1);
             List<String> items = table.getColumnPluses().stream()
                     .map(columnPlus -> columnPlus.getColumn().getName())
                     .collect(Collectors.toList());
