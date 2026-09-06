@@ -15,6 +15,7 @@
 package com.starrocks.connector.iceberg.procedure;
 
 import com.starrocks.connector.HdfsEnvironment;
+import com.starrocks.connector.iceberg.IcebergUtil;
 import com.starrocks.connector.iceberg.hive.IcebergHiveCatalog;
 import com.starrocks.qe.ConnectContext;
 import com.starrocks.sql.ast.AlterTableOperationClause;
@@ -44,8 +45,10 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -79,6 +82,9 @@ public class IcebergProcedureVendedCredentialsTest {
 
     private static final String STATIC_AK = "static-access-key";
     private static final String STATIC_SK = "static-secret-key";
+
+    private static final String GCS_ACCESS_TOKEN = "gcs.oauth2.token";
+    private static final String GCS_IMPERSONATION_KEY = "fs.gs.auth.impersonation.service.account";
 
     private static final String TEMPORARY_CREDENTIAL_PROVIDER =
             "org.apache.hadoop.fs.s3a.TemporaryAWSCredentialsProvider";
@@ -161,6 +167,65 @@ public class IcebergProcedureVendedCredentialsTest {
         assertEquals(STATIC_SK, conf.get(S3A_SECRET_KEY));
     }
 
+    // ------------------------------ overlaying is not neutralizing ------------------------------
+    //
+    // Both cases below are the same mistake in two places: applying the vended credentials sets the
+    // keys it needs, but leaves the base configuration's *conflicting* state in place. Overlaying is
+    // not neutralizing.
+
+    /**
+     * A catalog-level GCS impersonation account must not survive onto a vended token.
+     * {@code GCPCloudCredential} only omits *adding* impersonation when a token is present, so a value
+     * copied from the base configuration stays, and gcs-connector then impersonates on top of a token
+     * that typically lacks that IAM permission.
+     */
+    @Test
+    void testGcsImpersonationIsClearedWhenTokenIsVended() {
+        Map<String, String> baseWithImpersonation = new HashMap<>();
+        baseWithImpersonation.put("gcp.gcs.use_compute_engine_service_account", "false");
+        baseWithImpersonation.put("gcp.gcs.impersonation_service_account", "svc@project.iam.gserviceaccount.com");
+
+        Map<String, String> vendedGcsToken = new HashMap<>();
+        vendedGcsToken.put(GCS_ACCESS_TOKEN, "ya29.vended-token");
+
+        Configuration conf = IcebergUtil.buildStorageConfiguration(
+                tableWithVendedProperties(vendedGcsToken, "gs://bucket/db/tbl"),
+                catalogWithNoProperties(), new HdfsEnvironment(baseWithImpersonation));
+
+        assertNull(conf.get(GCS_IMPERSONATION_KEY),
+                "a vended GCS token must not be used together with catalog impersonation");
+    }
+
+    /**
+     * A file system built from vended credentials must not be served out of Hadoop's process-wide
+     * cache, whose key is (scheme, authority, ugi) and excludes the Configuration - one instance would
+     * otherwise serve every catalog on the account with whichever credential created it first, and
+     * keep serving a token after it expired.
+     */
+    @Test
+    void testSharedFileSystemCacheIsDisabledForVendedCredentials() {
+        Map<String, String> vendedGcsToken = new HashMap<>();
+        vendedGcsToken.put(GCS_ACCESS_TOKEN, "ya29.vended-token");
+
+        Configuration conf = IcebergUtil.buildStorageConfiguration(
+                tableWithVendedProperties(vendedGcsToken, "gs://bucket/db/tbl"),
+                catalogWithNoProperties(), new HdfsEnvironment());
+
+        assertTrue(conf.getBoolean("fs.gs.impl.disable.cache", false),
+                "gs file systems carrying a vended token must be isolated from the shared cache");
+    }
+
+    /** Control: nothing vended, so nothing is isolated and nothing is unset. */
+    @Test
+    void testSharedFileSystemCacheIsKeptWhenNothingIsVended() {
+        Configuration conf = IcebergUtil.buildStorageConfiguration(
+                tableWithVendedProperties(Collections.emptyMap(), "gs://bucket/db/tbl"),
+                catalogWithNoProperties(), staticCredentialEnvironment());
+
+        assertFalse(conf.getBoolean("fs.gs.impl.disable.cache", false),
+                "without vended credentials the shared cache must keep working");
+    }
+
     // ------------------------------------------------------------------------- harness
 
     private static Map<String, String> vendedProperties() {
@@ -179,6 +244,16 @@ public class IcebergProcedureVendedCredentialsTest {
         properties.put("aws.s3.endpoint", "http://minio:9000");
         properties.put("aws.s3.region", "us-east-1");
         return new HdfsEnvironment(properties);
+    }
+
+    private static Table tableWithVendedProperties(Map<String, String> ioProperties, String location) {
+        Table table = tableWithVendedProperties(ioProperties);
+        when(table.location()).thenReturn(location);
+        return table;
+    }
+
+    private static IcebergHiveCatalog catalogWithNoProperties() {
+        return mock(IcebergHiveCatalog.class);
     }
 
     /** A table whose FileIO reports {@code ioProperties} - i.e. what the catalog vended for it. */

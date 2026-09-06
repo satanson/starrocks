@@ -24,12 +24,15 @@ import com.starrocks.connector.exception.StarRocksConnectorException;
 import com.starrocks.credential.CloudConfiguration;
 import com.starrocks.credential.CloudConfigurationFactory;
 import com.starrocks.credential.CloudType;
+import com.starrocks.credential.gcp.GCPCloudConfigurationProvider;
 import com.starrocks.planner.SlotDescriptor;
 import com.starrocks.qe.SessionVariable;
 import com.starrocks.server.GlobalStateMgr;
 import com.starrocks.thrift.TExprMinMaxValue;
 import com.starrocks.thrift.TExprNodeType;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.GenericManifestFile;
@@ -65,6 +68,11 @@ public final class IcebergUtil {
     // `connector_sink_target_max_file_size` is set. Kept at 1 GiB to preserve
     // StarRocks' historical default; Iceberg's own default is 512 MiB.
     static final long DEFAULT_TARGET_FILE_SIZE_BYTES = 1024L * 1024 * 1024;
+
+    // Same set as IcebergCachingFileIO: the schemes whose file systems must not be shared through
+    // Hadoop's Configuration-blind cache when the credential is vended per table.
+    private static final Set<String> SCHEMES_REQUIRING_FS_ISOLATION =
+            Set.of("gs", "abfs", "abfss", "wasb", "wasbs", "adl");
 
     public static String fileName(String path) {
         return path.substring(path.lastIndexOf('/') + 1);
@@ -376,8 +384,53 @@ public final class IcebergUtil {
 
         if (vended.getCloudType() != CloudType.DEFAULT) {
             vended.applyToConfiguration(configuration);
+            neutralizeConflictingBaseSettings(configuration, nativeTable);
+            isolateFileSystemForVendedCredentials(configuration, nativeTable.location());
         }
         return configuration;
+    }
+
+    /**
+     * Overlaying the vended credentials is not enough on its own: the base configuration can carry
+     * settings that stay valid-looking and then contradict the token that was just applied.
+     * <p>
+     * Today that is GCS impersonation. {@code GCPCloudCredential} merely omits *adding*
+     * impersonation when an access token is present, so a catalog-level
+     * {@code fs.gs.auth.impersonation.service.account} copied from the base survives, and
+     * gcs-connector then impersonates on top of a vended token that typically has no such IAM
+     * permission. {@link com.starrocks.connector.iceberg.io.IcebergCachingFileIO} unsets the same
+     * key for the same reason.
+     */
+    private static void neutralizeConflictingBaseSettings(Configuration configuration, Table nativeTable) {
+        if (nativeTable.io().properties().containsKey(GCPCloudConfigurationProvider.GCS_ACCESS_TOKEN)) {
+            configuration.unset(GCPCloudConfigurationProvider.IMPERSONATION_SERVICE_ACCOUNT_KEY);
+        }
+    }
+
+    /**
+     * Keeps a file system built from vended credentials out of Hadoop's process-wide cache.
+     * <p>
+     * That cache is keyed on {@code (scheme, authority, ugi)} and ★excludes the Configuration★, so
+     * one instance would serve every catalog on the same bucket or account with whichever credential
+     * created it first — and once a vended token expires, later calls keep getting the stale one.
+     * <p>
+     * The scheme list is deliberately the same one
+     * {@link com.starrocks.connector.iceberg.io.IcebergCachingFileIO} uses, and it deliberately
+     * ★excludes s3★: bypassing the cache leaks an unclosed file system per call, and on the s3 path
+     * the callers here read a footer per data file. That trade-off is a repository-level decision
+     * (those schemes are waiting for a credential-keyed cache), not something this change settles;
+     * the scan and sink paths carry the same residue.
+     */
+    private static void isolateFileSystemForVendedCredentials(Configuration configuration, String location) {
+        String scheme = new Path(location).toUri().getScheme();
+        if (scheme == null) {
+            // A scheme-less path is resolved through fs.defaultFS before the flag is consulted, so the
+            // flag has to be keyed on the default scheme rather than skipped.
+            scheme = FileSystem.getDefaultUri(configuration).getScheme();
+        }
+        if (scheme != null && SCHEMES_REQUIRING_FS_ISOLATION.contains(scheme)) {
+            configuration.setBoolean(String.format("fs.%s.impl.disable.cache", scheme), true);
+        }
     }
 
     public static void checkFileFormatSupportedDelete(FileScanTask fileScanTask, boolean uedForDelete) {
